@@ -105,7 +105,7 @@ const gameSchema = new mongoose.Schema({
 });
 
 // Indexes
-gameSchema.index({ slug: 1 });
+// Note: slug already has unique: true which creates an index, so we don't need to index it again
 gameSchema.index({ category: 1, isActive: 1 });
 gameSchema.index({ isFeatured: 1, isActive: 1 });
 

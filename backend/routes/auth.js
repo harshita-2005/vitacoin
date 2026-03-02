@@ -1,5 +1,6 @@
 const express = require('express');
 const User = require('../models/User');
+const Transaction = require('../models/Transaction');
 const { protect, generateToken } = require('../middleware/auth');
 const router = express.Router();
 
@@ -77,6 +78,38 @@ router.post('/login', async (req, res) => {
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Reset demo user to fresh state on every login
+    if (user.email === 'demo@vitacoin.com') {
+      // Delete all transactions for demo user
+      await Transaction.deleteMany({ user: user._id });
+      
+      // Reset user data
+      user.coinBalance = 0;
+      user.totalEarned = 0;
+      user.experiencePoints = 0;
+      user.userLevel = 1;
+      // Reset game progress
+      if (user.gameProgress && user.gameProgress instanceof Map) {
+        user.gameProgress.clear();
+      } else {
+        user.gameProgress = new Map();
+      }
+      // Reset daily attempts
+      if (user.dailyAttempts && user.dailyAttempts instanceof Map) {
+        user.dailyAttempts.clear();
+      } else {
+        user.dailyAttempts = new Map();
+      }
+      // Reset daily challenge completion
+      if (user.dailyChallengeCompleted && user.dailyChallengeCompleted instanceof Map) {
+        user.dailyChallengeCompleted.clear();
+      } else {
+        user.dailyChallengeCompleted = new Map();
+      }
+      // Clear badges (optional - remove if you want to keep badges)
+      user.badges = [];
     }
 
     // Update last login

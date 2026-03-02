@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FiUser, FiMail, FiLock, FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiMail, FiLock, FiEye, FiEyeOff } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 
@@ -223,20 +223,35 @@ const Login = () => {
           </div>
         </motion.form>
 
-        {/* Demo Info */}
+        {/* Demo Accounts Info */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className="mt-8 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200"
+          className="mt-8 space-y-4"
         >
-          <h3 className="text-sm font-semibold text-blue-900 mb-2">Demo Account</h3>
-          <p className="text-xs text-blue-700 mb-2">
-            You can use these credentials to test the application:
-          </p>
-          <div className="text-xs text-blue-600 space-y-1">
-            <p><strong>Email:</strong> demo@vitacoin.com</p>
-            <p><strong>Password:</strong> demo123</p>
+          {/* Demo User Account */}
+          <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+            <h3 className="text-sm font-semibold text-blue-900 mb-2">Demo Account (Regular User)</h3>
+            <p className="text-xs text-blue-700 mb-2">
+              Test the application as a regular user:
+            </p>
+            <div className="text-xs text-blue-600 space-y-1">
+              <p><strong>Email:</strong> demo@vitacoin.com</p>
+              <p><strong>Password:</strong> demo123</p>
+            </div>
+          </div>
+
+          {/* Admin Account */}
+          <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200">
+            <h3 className="text-sm font-semibold text-purple-900 mb-2">Admin Account</h3>
+            <p className="text-xs text-purple-700 mb-2">
+              Access admin dashboard and management features:
+            </p>
+            <div className="text-xs text-purple-600 space-y-1">
+              <p><strong>Email:</strong> admin@vitacoin.com</p>
+              <p><strong>Password:</strong> admin123</p>
+            </div>
           </div>
         </motion.div>
       </motion.div>

@@ -11,10 +11,19 @@
     "build": "cd frontend && npm run build",
     "start": "cd backend && npm start"
   },
-  "keywords": ["vitacoin", "rewards", "transactions", "mern", "dashboard"],
+  "keywords": [
+    "vitacoin",
+    "rewards",
+    "transactions",
+    "mern",
+    "dashboard"
+  ],
   "author": "Vitacoin Team",
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "mongodb": "^6.20.0"
   }
 }

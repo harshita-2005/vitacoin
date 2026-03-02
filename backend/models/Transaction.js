@@ -49,6 +49,8 @@ const transactionSchema = new mongoose.Schema({
       'system_bonus',
       'event_reward',
       'coupon_redemption',
+      'game_completion',
+      'daily_challenge',
       'other'
     ],
     default: 'other'
@@ -66,7 +68,15 @@ const transactionSchema = new mongoose.Schema({
     },
     reason: String,
     location: String,
-    device: String
+    device: String,
+    // Game-related metadata
+    gameSlug: String,
+    difficulty: String,
+    score: Number,
+    time: Number,
+    accuracy: Number,
+    xpEarned: Number,
+    levelUnlocked: Boolean
   },
   status: {
     type: String,

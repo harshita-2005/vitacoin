@@ -1,3 +1,6 @@
+// Load environment variables FIRST (before anything else)
+require('dotenv').config();
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -6,7 +9,6 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const http = require('http');
 const socketIo = require('socket.io');
-require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
@@ -18,12 +20,18 @@ const challengeRoutes = require('./routes/challenges');
 const adminRoutes = require('./routes/admin');
 const adminTaskRoutes = require('./routes/adminTasks');
 const walletRoutes = require('./routes/wallet');
+const gamePlayRoutes = require('./routes/gamePlay');
+const dailyChallengeRoutes = require('./routes/dailyChallenge');
 
 const { authenticateSocket } = require('./middleware/auth');
 const { setupSocketHandlers } = require('./socket/socketHandlers');
 
 const app = express();
 const server = http.createServer(app);
+
+// Trust proxy for rate limiting (fixes X-Forwarded-For warning)
+app.set('trust proxy', 1);
+
 const io = socketIo(server, {
   cors: {
     origin: process.env.CORS_ORIGIN || "http://localhost:3000",
@@ -32,12 +40,33 @@ const io = socketIo(server, {
 });
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/vitacoin', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
+const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/vitacoin';
+
+// Only show debug in development if connection fails
+if (!process.env.MONGODB_URI && process.env.NODE_ENV === 'development') {
+  console.warn('⚠️  MONGODB_URI not found in .env file');
+  console.warn('💡 Make sure .env file exists in backend/ folder');
+}
+
+mongoose.connect(mongoUri, {
+  serverSelectionTimeoutMS: 10000, // Timeout for Atlas connection
+  socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
 })
-.then(() => console.log('MongoDB connected successfully'))
-.catch(err => console.error('MongoDB connection error:', err));
+.then(() => {
+  console.log('✅ MongoDB connected successfully');
+  console.log('✅ Database:', mongoose.connection.name);
+})
+.catch(err => {
+  console.error('❌ MongoDB connection error:', err.message);
+  if (process.env.NODE_ENV === 'development') {
+    console.error('💡 Connection string:', mongoUri.substring(0, 30) + '...');
+    console.error('\n🔧 Troubleshooting:');
+    console.error('1. Verify MONGODB_URI in .env file');
+    console.error('2. Check MongoDB Atlas Network Access (should allow 0.0.0.0/0)');
+    console.error('3. Verify database user has read/write permissions');
+    console.error('4. Check if password has special characters (need URL encoding)');
+  }
+});
 
 // Security middleware
 app.use(helmet());
@@ -78,6 +107,8 @@ app.use('/api/challenges', challengeRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/tasks', adminTaskRoutes);
 app.use('/api/wallet', walletRoutes);
+app.use('/api/game', gamePlayRoutes);
+app.use('/api/daily-challenge', dailyChallengeRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

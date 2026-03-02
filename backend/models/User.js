@@ -76,6 +76,67 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0,
     min: [0, 'Login streak cannot be negative']
+  },
+  // Game progress tracking
+  gameProgress: {
+    type: Map,
+    of: {
+      level: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 2 // 0 = Easy, 1 = Medium, 2 = Hard
+      },
+      unlocked: {
+        type: Boolean,
+        default: true
+      },
+      bestScore: {
+        type: Number,
+        default: 0
+      },
+      // Store best score per difficulty level
+      scores: {
+        easy: { type: Number, default: 0 },
+        medium: { type: Number, default: 0 },
+        hard: { type: Number, default: 0 }
+      },
+      timesPlayed: {
+        type: Number,
+        default: 0
+      }
+    },
+    default: {}
+  },
+  // Daily attempt tracking (resets daily)
+  dailyAttempts: {
+    type: Map,
+    of: {
+      type: Number,
+      default: 0
+    },
+    default: {}
+  },
+  // Experience points and leveling system
+  experiencePoints: {
+    type: Number,
+    default: 0,
+    min: [0, 'Experience points cannot be negative']
+  },
+  userLevel: {
+    type: Number,
+    default: 1,
+    min: [1, 'User level must be at least 1']
+  },
+  // Daily challenge completion tracking
+  dailyChallengeCompleted: {
+    type: Map,
+    of: {
+      completed: Boolean,
+      completedAt: Date,
+      score: Number
+    },
+    default: {}
   }
 }, {
   timestamps: true,

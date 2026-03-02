@@ -1,22 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiX, FiPlay, FiPause, FiRotateCcw, FiAward, FiClock, FiTarget, FiAlertCircle } from 'react-icons/fi';
+import { FiX, FiPlay, FiPause, FiRotateCcw, FiClock, FiTarget, FiAlertCircle } from 'react-icons/fi';
+import axios from 'axios';
+import toast from 'react-hot-toast';
 import MemoryGame from './MemoryGame';
 import MathQuiz from './MathQuiz';
 import WordScramble from './WordScramble';
 import ReactionTime from './ReactionTime';
 import PuzzleSolver from './PuzzleSolver';
 
-const GamePlayer = ({ game, challenge, onComplete, onClose }) => {
+const GamePlayer = ({ game, challenge, onComplete, onClose, difficulty = 'easy' }) => {
+  // Determine mode: challenge = competitive, no challenge = practice
+  const mode = challenge ? 'challenge' : 'practice';
+  
   const [gameState, setGameState] = useState('menu'); // menu, playing, paused, completed
   const [score, setScore] = useState(0);
   const [time, setTime] = useState(0);
   const [accuracy, setAccuracy] = useState(0);
+  const [correctAnswers, setCorrectAnswers] = useState(0);
+  const [gameResult, setGameResult] = useState(null); // Store complete game result
   const [gameTimer, setGameTimer] = useState(null);
   const [startTime, setStartTime] = useState(null);
+  const [gameResetKey, setGameResetKey] = useState(0); // Key to force game reset
   
   // Challenge timer state
-  const [challengeStartTime, setChallengeStartTime] = useState(null);
   const [challengeTimeElapsed, setChallengeTimeElapsed] = useState(0);
   const [challengeTimer, setChallengeTimer] = useState(null);
   const [showChallengeTimer, setShowChallengeTimer] = useState(false);
@@ -30,53 +37,88 @@ const GamePlayer = ({ game, challenge, onComplete, onClose }) => {
     };
   }, [gameTimer, challengeTimer]);
 
-  // Start challenge timer when challenge is active
-  useEffect(() => {
-    if (challenge && gameState === 'playing') {
-      startChallengeTimer();
-    }
-  }, [challenge, gameState]);
-
-  // Check for time up
-  useEffect(() => {
-    if (challenge && challengeTimeElapsed >= challengeTimeLimit && challengeTimeLimit > 0) {
-      handleTimeUp();
-    }
-  }, [challengeTimeElapsed, challengeTimeLimit]);
-
-  const startChallengeTimer = () => {
+  const startChallengeTimer = useCallback(() => {
     if (!challenge) return;
     
     const timeLimit = challenge.requirements?.timeLimit || 300;
     setChallengeTimeLimit(timeLimit);
-    setChallengeStartTime(Date.now());
     setShowChallengeTimer(true);
     
     const timer = setInterval(() => {
       setChallengeTimeElapsed(prev => prev + 1);
     }, 1000);
     setChallengeTimer(timer);
-  };
+  }, [challenge]);
 
-  const handleTimeUp = () => {
+  const handleSubmitScore = useCallback(() => {
+    // Use gameResult if available (most accurate), otherwise use state values
+    const result = {
+      score: gameResult?.score ?? score,
+      time,
+      accuracy: gameResult?.accuracy ?? accuracy,
+      correctAnswers: gameResult?.correctAnswers ?? correctAnswers, // Use gameResult first
+      challengeTimeElapsed: challenge ? challengeTimeElapsed : null
+    };
+    
+    onComplete(result);
+  }, [score, time, accuracy, correctAnswers, gameResult, challenge, challengeTimeElapsed, onComplete]);
+
+  const handleTimeUp = useCallback(() => {
     // Stop all timers
     if (gameTimer) clearInterval(gameTimer);
     if (challengeTimer) clearInterval(challengeTimer);
     
     setGameState('completed');
     setShowTimeUpPopup(true);
-    
-    // Auto-submit with current score (will fail due to time)
-    setTimeout(() => {
-      handleSubmitScore();
-    }, 2000);
-  };
+    // Score submission will be triggered when user clicks "Continue"
+  }, [gameTimer, challengeTimer]);
 
-  const startGame = () => {
+  // Start challenge timer when challenge is active
+  useEffect(() => {
+    if (challenge && gameState === 'playing') {
+      startChallengeTimer();
+    }
+  }, [challenge, gameState, startChallengeTimer]);
+
+  // Check for time up
+  useEffect(() => {
+    if (challenge && challengeTimeElapsed >= challengeTimeLimit && challengeTimeLimit > 0) {
+      handleTimeUp();
+    }
+  }, [challenge, challengeTimeElapsed, challengeTimeLimit, handleTimeUp]);
+
+  const startGame = async () => {
+    try {
+      // Consume an attempt as soon as the user starts/restarts the game
+      const payload = {
+        game: game.slug || game._id,
+        difficulty
+      };
+      const response = await axios.post('/api/game/start', payload);
+      
+      if (!response.data.success) {
+        const msg = response.data.error || response.data.errors?.[0] || 'Unable to start game';
+        toast.error(msg);
+        return;
+      }
+    } catch (error) {
+      const msg =
+        error.response?.data?.error ||
+        error.response?.data?.errors?.[0] ||
+        'Unable to start game. Please try again.';
+      toast.error(msg);
+      return;
+    }
+
+    // Increment reset key to force game component to reset
+    setGameResetKey(prev => prev + 1);
+    
     setGameState('playing');
     setScore(0);
     setTime(0);
     setAccuracy(0);
+    setCorrectAnswers(0);
+    setGameResult(null); // Reset game result
     setStartTime(Date.now());
     
     // Reset challenge timer
@@ -90,19 +132,42 @@ const GamePlayer = ({ game, challenge, onComplete, onClose }) => {
   };
 
   const pauseGame = () => {
+    // In challenge mode, pause = end challenge (no resume allowed)
+    if (mode === 'challenge') {
+      // Auto-submit current progress
+      handleSubmitScore();
+      return;
+    }
+    
+    // Practice mode: pause normally
     setGameState('paused');
-    if (gameTimer) clearInterval(gameTimer);
-    if (challengeTimer) clearInterval(challengeTimer);
+    
+    // Stop timers
+    if (gameTimer) {
+      clearInterval(gameTimer);
+      setGameTimer(null);
+    }
+    if (challengeTimer) {
+      clearInterval(challengeTimer);
+      setChallengeTimer(null);
+    }
   };
 
   const resumeGame = () => {
+    // Resume only allowed in practice mode
+    if (mode === 'challenge') {
+      return; // Should never reach here, but safety check
+    }
+    
     setGameState('playing');
+    
+    // Resume game timer from where it left off (FIX: Don't reset)
     const timer = setInterval(() => {
       setTime(prev => prev + 1);
     }, 1000);
     setGameTimer(timer);
     
-    // Resume challenge timer
+    // Resume challenge timer if it was running (preserve elapsed time)
     if (challenge) {
       const challengeTimer = setInterval(() => {
         setChallengeTimeElapsed(prev => prev + 1);
@@ -118,31 +183,48 @@ const GamePlayer = ({ game, challenge, onComplete, onClose }) => {
     setGameState('completed');
     setScore(finalScore);
     setAccuracy(finalAccuracy);
-    setTime(Math.floor((Date.now() - startTime) / 1000));
+    const totalTime = Math.floor((Date.now() - startTime) / 1000);
+    setTime(totalTime);
+    return totalTime;
   };
 
-  const handleGameComplete = (gameResult) => {
-    endGame(gameResult.score, gameResult.accuracy);
-  };
+  const handleGameComplete = (result) => {
+    // Finish local timers / state and compute duration
+    const totalTime = endGame(result.score, result.accuracy);
 
-  const handleSubmitScore = () => {
-    // Include challenge time in the result
-    const result = {
-      score,
-      time,
-      accuracy,
+    // Store complete game result for local display
+    const fullResult = {
+      ...result,
+      time: totalTime,
       challengeTimeElapsed: challenge ? challengeTimeElapsed : null
     };
-    
-    onComplete(result);
+    setGameResult(fullResult);
+
+    if (result.correctAnswers !== undefined) {
+      setCorrectAnswers(result.correctAnswers);
+    }
+
+    // Auto-submit score to parent (no manual submit button)
+    onComplete(fullResult);
   };
+
+  // Callback to update score in real-time
+  const handleScoreUpdate = useCallback((newScore, newAccuracy) => {
+    setScore(newScore);
+    if (newAccuracy !== undefined) {
+      setAccuracy(newAccuracy);
+    }
+  }, []);
 
   const renderGameComponent = () => {
     const gameProps = {
       onComplete: handleGameComplete,
       onPause: pauseGame,
       isPaused: gameState === 'paused',
-      timeLimit: game.gameConfig?.timeLimit
+      timeLimit: game.gameConfig?.timeLimit,
+      difficulty: difficulty, // Pass difficulty to game components
+      onScoreUpdate: handleScoreUpdate, // Pass score update callback
+      resetKey: gameResetKey // Pass reset key to force reset when restart is clicked
     };
 
     switch (game.slug) {
@@ -205,12 +287,6 @@ const GamePlayer = ({ game, challenge, onComplete, onClose }) => {
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center space-x-4">
             <h2 className="text-2xl font-bold text-gray-900">{game.name}</h2>
-            {challenge && (
-              <div className="flex items-center space-x-2 text-sm text-primary-600">
-                <FiTarget className="w-4 h-4" />
-                <span>Challenge Mode</span>
-              </div>
-            )}
           </div>
           
           {/* Challenge Timer */}
@@ -267,83 +343,102 @@ const GamePlayer = ({ game, challenge, onComplete, onClose }) => {
             </div>
           )}
 
-          {gameState === 'playing' && (
+          {(gameState === 'playing' || gameState === 'paused') && (
             <div className="space-y-4">
-              {/* Game Stats */}
+              {/* Game Stats - Different for Practice vs Challenge */}
               <div className="flex justify-between items-center bg-gray-50 p-4 rounded-lg">
-                <div className="flex items-center space-x-6">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-primary-600">{score}</div>
-                    <div className="text-sm text-gray-500">Score</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">{formatTime(time)}</div>
-                    <div className="text-sm text-gray-500">Game Time</div>
-                  </div>
-                  {challenge && (
+                {mode === 'challenge' ? (
+                  // Challenge Mode: Show Score and Challenge Timer
+                  <div className="flex items-center space-x-6">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-primary-600">{score}</div>
+                      <div className="text-sm text-gray-500">Score</div>
+                    </div>
                     <div className="text-center">
                       <div className={`text-2xl font-bold ${getTimerColor()}`}>
                         {formatTime(getTimeRemaining())}
                       </div>
                       <div className="text-sm text-gray-500">Time Left</div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  // Practice Mode: Show Score only (no game timer)
+                  <div className="flex items-center space-x-6">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-primary-600">{score}</div>
+                      <div className="text-sm text-gray-500">Score</div>
+                    </div>
+                  </div>
+                )}
                 
                 <div className="flex space-x-2">
-                  <button
-                    onClick={pauseGame}
-                    className="btn-outline"
-                  >
-                    <FiPause className="w-4 h-4 mr-2" />
-                    Pause
-                  </button>
+                  {mode === 'challenge' ? (
+                    <button
+                      onClick={pauseGame}
+                      className="btn-outline text-red-600 border-red-300 hover:bg-red-50"
+                      title="Exit Challenge (Attempt will be counted)"
+                    >
+                      <FiAlertCircle className="w-4 h-4 mr-2" />
+                      Exit Challenge
+                    </button>
+                  ) : (
+                    gameState === 'playing' ? (
+                      <button
+                        onClick={pauseGame}
+                        className="btn-outline"
+                      >
+                        <FiPause className="w-4 h-4 mr-2" />
+                        Pause
+                      </button>
+                    ) : (
+                      <button
+                        onClick={resumeGame}
+                        className="btn-primary"
+                      >
+                        <FiPlay className="w-4 h-4 mr-2" />
+                        Resume
+                      </button>
+                    )
+                  )}
                 </div>
               </div>
 
-              {/* Game Component */}
-              <div className="min-h-[400px] flex items-center justify-center">
+              {/* Game Component - Always render to preserve state */}
+              <div className="relative min-h-[400px] flex items-center justify-center">
                 {renderGameComponent()}
-              </div>
-            </div>
-          )}
-
-          {gameState === 'paused' && (
-            <div className="text-center space-y-6">
-              <div className="text-6xl mb-4">⏸️</div>
-              <h3 className="text-2xl font-bold text-gray-800">Game Paused</h3>
-              <p className="text-gray-600">Take a break or resume when ready</p>
-              
-              {challenge && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-md mx-auto">
-                  <h4 className="font-semibold text-yellow-800 mb-2">Challenge Status:</h4>
-                  <div className="space-y-1 text-sm text-yellow-700">
-                    <div>• Time Elapsed: {formatTime(challengeTimeElapsed)}</div>
-                    <div>• Time Remaining: {formatTime(getTimeRemaining())}</div>
-                    <div>• Current Score: {score}</div>
+                
+                {/* Pause Overlay - Only show when paused in practice mode */}
+                {gameState === 'paused' && mode === 'practice' && (
+                  <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center rounded-lg z-10">
+                    <div className="text-center space-y-4">
+                      <div className="text-6xl mb-4">⏸️</div>
+                      <h3 className="text-2xl font-bold text-white">Game Paused</h3>
+                      <p className="text-gray-200">
+                        Take a break or resume when ready
+                      </p>
+                      <div className="flex justify-center space-x-4 mt-6">
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={resumeGame}
+                          className="btn-primary"
+                        >
+                          <FiPlay className="w-4 h-4 mr-2" />
+                          Resume
+                        </motion.button>
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={startGame}
+                          className="btn-outline bg-white"
+                        >
+                          <FiRotateCcw className="w-4 h-4 mr-2" />
+                          Restart
+                        </motion.button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )}
-              
-              <div className="flex justify-center space-x-4">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={resumeGame}
-                  className="btn-primary"
-                >
-                  <FiPlay className="w-4 h-4 mr-2" />
-                  Resume
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={startGame}
-                  className="btn-outline"
-                >
-                  <FiRotateCcw className="w-4 h-4 mr-2" />
-                  Restart
-                </motion.button>
+                )}
               </div>
             </div>
           )}
@@ -379,15 +474,14 @@ const GamePlayer = ({ game, challenge, onComplete, onClose }) => {
                   </div>
                 </div>
               )}
-              
+
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={handleSubmitScore}
+                onClick={onClose}
                 className="btn-primary text-lg px-8 py-3"
               >
-                <FiAward className="w-5 h-5 mr-2" />
-                Submit Score
+                Close
               </motion.button>
             </div>
           )}
@@ -421,7 +515,10 @@ const GamePlayer = ({ game, challenge, onComplete, onClose }) => {
                   </div>
                 </div>
                 <button
-                  onClick={() => setShowTimeUpPopup(false)}
+                  onClick={() => {
+                    setShowTimeUpPopup(false);
+                    handleSubmitScore();
+                  }}
                   className="btn-primary w-full"
                 >
                   Continue

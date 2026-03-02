@@ -6,10 +6,12 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import GamePlayer from '../../components/Games/GamePlayer';
-import gameImages from '../../assets/gameImages';
+import LevelSelector from '../../components/Games/LevelSelector';
+import DailyChallenge from '../../components/Games/DailyChallenge';
+import toast from 'react-hot-toast';
 
 const PlayGames = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, updateBalance, updateUser } = useAuth();
   const navigate = useNavigate();
   const [games, setGames] = useState([]);
   const [challenges, setChallenges] = useState([]);
@@ -17,6 +19,9 @@ const PlayGames = () => {
   const [selectedGame, setSelectedGame] = useState(null);
   const [selectedChallenge, setSelectedChallenge] = useState(null);
   const [showGamePlayer, setShowGamePlayer] = useState(false);
+  const [selectedDifficulty, setSelectedDifficulty] = useState('easy');
+  const [showLevelSelector, setShowLevelSelector] = useState(false);
+  const [isDailyChallenge, setIsDailyChallenge] = useState(false);
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -43,34 +48,117 @@ const PlayGames = () => {
 
   const handleGameSelect = (game) => {
     setSelectedGame(game);
+    setShowLevelSelector(true);
+    setSelectedDifficulty('easy');
+    setIsDailyChallenge(false);
+  };
+
+  const handleLevelSelected = (difficulty) => {
+    setSelectedDifficulty(difficulty);
+    setShowLevelSelector(false);
+    setShowGamePlayer(true);
+  };
+
+  const handleDailyChallengeStart = () => {
+    if (!selectedGame) {
+      toast.error('Please select a game first');
+      return;
+    }
+    setIsDailyChallenge(true);
+    setSelectedDifficulty('medium'); // Daily challenge uses medium difficulty
     setShowGamePlayer(true);
   };
 
   const handleChallengeSelect = (challenge) => {
     setSelectedChallenge(challenge);
     setSelectedGame(challenge.gameId);
+    // Challenges should use medium or hard difficulty (not easy)
+    // Default to medium, but can be set based on challenge requirements
+    const challengeDifficulty = challenge.requirements?.difficulty || 'medium';
+    setSelectedDifficulty(challengeDifficulty === 'easy' ? 'medium' : challengeDifficulty);
     setShowGamePlayer(true);
   };
 
   const handleGameComplete = async (result) => {
     try {
-      // Submit score to backend
-      const response = await axios.post(`/api/games/${selectedGame._id}/score`, {
-        score: result.score,
-        time: result.time,
-        accuracy: result.accuracy,
-        challengeId: selectedChallenge?._id
-      });
+      if (isDailyChallenge) {
+        // Submit daily challenge completion
+        const response = await axios.post('/api/daily-challenge/complete', {
+          game: selectedGame.slug || selectedGame._id,
+          score: result.score,
+          time: result.time,
+          accuracy: result.accuracy
+        });
 
-      if (response.data.success) {
-        // Refresh data
-        await fetchGamesData();
-        setShowGamePlayer(false);
-        setSelectedGame(null);
-        setSelectedChallenge(null);
+        if (response.data.success) {
+          toast.success(response.data.message || 'Daily challenge completed!');
+          
+          // Fetch updated user data to get latest totalEarned and coinBalance
+          try {
+            const userResponse = await axios.get('/api/auth/verify');
+            if (userResponse.data.user) {
+              updateUser(userResponse.data.user);
+            }
+          } catch (error) {
+            console.error('Error fetching updated user data:', error);
+          }
+          
+          await fetchGamesData();
+          // Do NOT auto-close game player; let user close via X
+        }
+      } else {
+        // Submit regular game play with backend validation
+        // Debug: Log what we're sending
+        console.log('Submitting game result:', {
+          game: selectedGame.slug || selectedGame._id,
+          difficulty: selectedDifficulty,
+          score: result.score,
+          correctAnswers: result.correctAnswers,
+          time: result.time,
+          accuracy: result.accuracy
+        });
+        
+        const response = await axios.post('/api/game/play', {
+          game: selectedGame.slug || selectedGame._id,
+          difficulty: selectedDifficulty,
+          score: result.score || 0,
+          time: result.time || 0,
+          accuracy: result.accuracy || 0,
+          correctAnswers: result.correctAnswers || 0
+        });
+
+        if (response.data.success) {
+          toast.success(response.data.message || `You earned ${response.data.coinsAwarded} coins!`);
+          
+          if (response.data.levelUnlocked) {
+            toast.success(`🎉 Level unlocked! You can now play ${selectedDifficulty === 'easy' ? 'Medium' : 'Hard'} difficulty!`);
+          }
+          
+          // Fetch updated user data to get latest totalEarned and coinBalance
+          try {
+            const userResponse = await axios.get('/api/auth/verify');
+            if (userResponse.data.user) {
+              updateUser(userResponse.data.user);
+            }
+          } catch (error) {
+            console.error('Error fetching updated user data:', error);
+            // Fallback: update balance if provided
+            if (response.data.newBalance !== undefined) {
+              updateBalance(response.data.newBalance);
+            }
+          }
+          
+          // Refresh data
+          await fetchGamesData();
+          // Do NOT auto-close game player here; user can close with X
+        } else {
+          toast.error(response.data.error || 'Failed to process game completion');
+        }
       }
     } catch (error) {
       console.error('Error submitting score:', error);
+      const errorMessage = error.response?.data?.error || error.response?.data?.errors?.[0] || 'Failed to submit score';
+      toast.error(errorMessage);
     }
   };
 
@@ -108,10 +196,43 @@ const PlayGames = () => {
     return filtered;
   };
 
-  if (loading) {
+  // Only show global loading spinner when no game modal is open
+  if (loading && !showGamePlayer && !showLevelSelector) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (showLevelSelector && selectedGame) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white rounded-xl shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto p-6"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">
+              Select Difficulty - {selectedGame.name}
+            </h2>
+            <button
+              onClick={() => {
+                setShowLevelSelector(false);
+                setSelectedGame(null);
+              }}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+          <LevelSelector
+            gameSlug={selectedGame.slug || selectedGame._id}
+            onLevelSelect={handleLevelSelected}
+            selectedLevel={selectedDifficulty}
+          />
+        </motion.div>
       </div>
     );
   }
@@ -121,11 +242,14 @@ const PlayGames = () => {
       <GamePlayer
         game={selectedGame}
         challenge={selectedChallenge}
+        difficulty={selectedDifficulty}
         onComplete={handleGameComplete}
         onClose={() => {
           setShowGamePlayer(false);
           setSelectedGame(null);
           setSelectedChallenge(null);
+          setIsDailyChallenge(false);
+          setSelectedDifficulty('easy');
         }}
       />
     );
@@ -208,6 +332,19 @@ const PlayGames = () => {
               })}
             </div>
           </div>
+        </motion.div>
+
+        {/* Daily Challenge Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-12"
+        >
+          <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+            <FiAward className="w-6 h-6 text-purple-600" />
+            Daily Challenge
+          </h2>
+          <DailyChallenge onStart={handleDailyChallengeStart} />
         </motion.div>
 
         {/* Active Challenges Section */}
@@ -344,13 +481,7 @@ const PlayGames = () => {
                       {game.description}
                     </p>
                     
-                    <div className="flex items-center justify-between">
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-primary-600">
-                          +{game.rewards.baseCoins}
-                        </div>
-                        <div className="text-xs text-gray-500">coins</div>
-                      </div>
+                    <div className="flex items-center justify-center">
                       <button className="btn btn-primary btn-sm">
                         <FiPlay className="w-4 h-4 mr-1" />
                         Play

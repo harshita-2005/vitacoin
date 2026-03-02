@@ -5,10 +5,7 @@ require('dotenv').config();
 const createAdminUser = async () => {
   try {
     // Connect to MongoDB
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/vitacoin', {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/vitacoin');
 
     console.log('Connected to MongoDB');
 
