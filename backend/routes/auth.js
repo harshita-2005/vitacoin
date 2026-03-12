@@ -108,6 +108,9 @@ router.post('/login', async (req, res) => {
       } else {
         user.dailyChallengeCompleted = new Map();
       }
+      // Reset Interview Arena progress so puzzles and MCQs show as not completed
+      user.completedPuzzles = [];
+      user.completedMcqs = [];
       // Clear badges (optional - remove if you want to keep badges)
       user.badges = [];
     }

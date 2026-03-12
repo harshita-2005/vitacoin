@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  FiUsers, 
-  FiAward, 
-  FiTrendingUp, 
-  FiSettings, 
+import {
+  FiUsers,
+  FiAward,
+  FiTrendingUp,
+  FiSettings,
   FiTarget,
   FiPlay,
-  FiLogOut
+  FiLogOut,
+  FiDatabase,
+  FiPlusCircle
 } from 'react-icons/fi';
+import toast from 'react-hot-toast';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -44,12 +47,47 @@ const AdminDashboard = () => {
 
 
 
+  const [datasetLoading, setDatasetLoading] = useState({ verbal: false, codebreaker: false });
+
+  const handleAddVerbalDataset = async () => {
+    setDatasetLoading((prev) => ({ ...prev, verbal: true }));
+    try {
+      const res = await axios.post('/api/admin/dataset/verbal', { count: 10 });
+      if (res.data?.success) {
+        toast.success(res.data.message || `Added ${res.data.added} words. Total: ${res.data.total}.`);
+      } else {
+        toast.error(res.data?.error || 'Failed to add data');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to add Verbal IQ data');
+    } finally {
+      setDatasetLoading((prev) => ({ ...prev, verbal: false }));
+    }
+  };
+
+  const handleAddCodeBreakerDataset = async () => {
+    setDatasetLoading((prev) => ({ ...prev, codebreaker: true }));
+    try {
+      const res = await axios.post('/api/admin/dataset/codebreaker', { count: 15 });
+      if (res.data?.success) {
+        toast.success(res.data.message || `Added ${res.data.added} words. Total: ${res.data.total}.`);
+      } else {
+        toast.error(res.data?.error || 'Failed to add data');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to add Code Breaker data');
+    } finally {
+      setDatasetLoading((prev) => ({ ...prev, codebreaker: false }));
+    }
+  };
+
   const tabs = [
     { id: 'overview', name: 'Overview', icon: FiTrendingUp },
     { id: 'tasks', name: 'Tasks', icon: FiTarget },
     { id: 'challenges', name: 'Challenges', icon: FiTarget },
     { id: 'games', name: 'Games', icon: FiPlay },
     { id: 'users', name: 'Users', icon: FiUsers },
+    { id: 'dataset', name: 'Dataset', icon: FiDatabase },
     { id: 'settings', name: 'Settings', icon: FiSettings }
   ];
 
@@ -165,6 +203,54 @@ const AdminDashboard = () => {
             className="space-y-6"
           >
             <AdminChallenges />
+          </motion.div>
+        )}
+
+        {activeTab === 'dataset' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            <div className="card">
+              <div className="card-body">
+                <h2 className="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+                  <FiDatabase className="w-6 h-6 text-primary-600" />
+                  Add data to dataset
+                </h2>
+                <p className="text-gray-600 mb-6">
+                  Click a button to fetch new words from external APIs and add them to the game datasets. This keeps content fresh and reduces repetition for players.
+                </p>
+                <div className="flex flex-wrap gap-4">
+                  <button
+                    type="button"
+                    onClick={handleAddVerbalDataset}
+                    disabled={datasetLoading.verbal}
+                    className="btn btn-primary inline-flex items-center gap-2"
+                  >
+                    {datasetLoading.verbal ? (
+                      <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                    ) : (
+                      <FiPlusCircle className="w-5 h-5" />
+                    )}
+                    Add Verbal IQ words
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddCodeBreakerDataset}
+                    disabled={datasetLoading.codebreaker}
+                    className="btn btn-outline inline-flex items-center gap-2"
+                  >
+                    {datasetLoading.codebreaker ? (
+                      <span className="animate-spin rounded-full h-4 w-4 border-2 border-primary-600 border-t-transparent" />
+                    ) : (
+                      <FiPlusCircle className="w-5 h-5" />
+                    )}
+                    Add Code Breaker words
+                  </button>
+                </div>
+              </div>
+            </div>
           </motion.div>
         )}
 

@@ -134,10 +134,23 @@ const userSchema = new mongoose.Schema({
     of: {
       completed: Boolean,
       completedAt: Date,
-      score: Number
+      score: Number,
+      correctAnswers: Number,
+      coinsAwarded: Number,
+      xpAwarded: Number
     },
     default: {}
-  }
+  },
+  // Interview puzzle completion (Interview Arena)
+  completedPuzzles: [{
+    puzzleId: { type: String, required: true },
+    completedAt: { type: Date, default: Date.now }
+  }],
+  // CS Fundamentals MCQ completion (Interview Arena)
+  completedMcqs: [{
+    mcqId: { type: String, required: true },
+    completedAt: { type: Date, default: Date.now }
+  }]
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

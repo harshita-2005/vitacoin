@@ -1,470 +1,669 @@
- import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
-import DifficultyIndicator from './DifficultyIndicator';
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { motion } from "framer-motion";
 
-// New aptitude-style pattern matrix game (replaces old sliding puzzle)
-const PuzzleSolver = ({ onComplete, onPause, isPaused, timeLimit, difficulty = 'easy', onScoreUpdate }) => {
-  const config = useMemo(() => {
-    const base = {
-      easy: { levelTarget: 3 },
-      medium: { levelTarget: 3 },
-      hard: { levelTarget: 3 }
-    };
-    return base[difficulty] || base.easy;
-  }, [difficulty]);
+/* ---------------- UTILITIES ---------------- */
 
-  const renderShape = (shape) => {
-    switch (shape) {
-      case 'square':
-        return '■';
-      case 'circle':
-        return '●';
-      case 'triangle':
-        return '▲';
-      case 'plus':
-        return '✚';
-      default:
-        return '';
+const shuffle = (arr) => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+
+const rand = (min, max) =>
+  Math.floor(Math.random() * (max - min + 1)) + min;
+
+const uniqueOptions = (correct, generator) => {
+  const set = new Set([correct]);
+  // Safety cap to avoid infinite loops if a generator can't produce enough unique values
+  let attempts = 0;
+  while (set.size < 4 && attempts < 200) {
+    set.add(generator());
+    attempts += 1;
+  }
+
+  // Last-resort fallback: deterministically pad options (only used if generator is poor)
+  if (set.size < 4) {
+    if (typeof correct === "number" && Number.isFinite(correct)) {
+      for (let i = 1; set.size < 4; i += 1) {
+        set.add(correct + i);
+      }
+    } else if (typeof correct === "string") {
+      for (let i = 0; set.size < 4 && i < letters.length; i += 1) {
+        set.add(letters[i]);
+      }
+    } else {
+      for (let i = 1; set.size < 4; i += 1) {
+        set.add(String(correct) + i);
+      }
     }
+  }
+  return shuffle([...set]);
+};
+
+const primes = [2,3,5,7,11,13,17,19,23,29,31,37,41,43];
+const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
+/* ---------------- PUZZLE GENERATORS ---------------- */
+
+const arithmetic = () => {
+  const start = rand(2,20);
+  const diff = rand(2,5);
+  const series = [start,start+diff,start+2*diff,start+3*diff,"?"];
+  const answer = start+4*diff;
+
+  return {
+    series,
+    answer,
+    options: uniqueOptions(answer, () => answer + rand(-5,5))
+  };
+};
+
+const geometric = () => {
+  const start = rand(2,5);
+  const ratio = rand(2,3);
+  const series=[start,start*ratio,start*ratio**2,start*ratio**3,"?"];
+  const answer=start*ratio**4;
+
+  return {
+    series,
+    answer,
+    // Use additive offsets to guarantee many unique distractors
+    options: uniqueOptions(answer, () => answer + rand(-20, 20))
+  };
+};
+
+const letterSeries = () => {
+  const step = rand(1,3);
+  const start = rand(0,20);
+
+  const series=[
+    letters[start],
+    letters[start+step],
+    letters[start+step*2],
+    letters[start+step*3],
+    "?"
+  ];
+
+  const answer = letters[start+step*4];
+
+  return {
+    series,
+    answer,
+    options: uniqueOptions(answer, () => letters[rand(0,25)])
+  };
+};
+
+const squares = () => {
+  const n = rand(2,6);
+  const series=[n**2,(n+1)**2,(n+2)**2,(n+3)**2,"?"];
+  const answer=(n+4)**2;
+
+  return {
+    series,
+    answer,
+    options: uniqueOptions(answer, () => answer + rand(-10,10))
+  };
+};
+
+const cubes = () => {
+  const n = rand(1,4);
+  const series=[n**3,(n+1)**3,(n+2)**3,(n+3)**3,"?"];
+  const answer=(n+4)**3;
+
+  return {
+    series,
+    answer,
+    options: uniqueOptions(answer, () => answer + rand(-20,20))
+  };
+};
+
+const primeSeries = () => {
+  const start = rand(0,4);
+
+  const series=[
+    primes[start],
+    primes[start+1],
+    primes[start+2],
+    primes[start+3],
+    "?"
+  ];
+
+  const answer = primes[start+4];
+
+  return {
+    series,
+    answer,
+    options: uniqueOptions(answer, () => primes[rand(0,8)])
+  };
+};
+
+const fibonacci = () => {
+  let a = rand(1,5);
+  let b = rand(1,5);
+
+  const series=[a,b];
+  for(let i=2;i<5;i++) series.push(series[i-1]+series[i-2]);
+
+  const answer=series[4]+series[3];
+  series.push("?");
+
+  return {
+    series,
+    answer,
+    options: uniqueOptions(answer, () => answer + rand(-5,5))
+  };
+};
+
+// Dynamic fraction series like 1/3,1/6,1/12,...
+const fractions = () => {
+  const base = rand(2,4);
+
+  const series = [
+    `1/${base}`,
+    `1/${base * 2}`,
+    `1/${base * 4}`,
+    `1/${base * 8}`,
+    "?"
+  ];
+
+  const answer = `1/${base * 16}`;
+
+  return {
+    series,
+    answer,
+    options: shuffle([
+      answer,
+      `1/${base * 12}`,
+      `1/${base * 20}`,
+      `1/${base * 24}`
+    ])
+  };
+};
+
+// Alternating pattern: +a, -b, +a, -b, ...
+// Example: 2,5,4,7,6,?
+const alternatingSeries = () => {
+  const start = rand(2,10);
+  const a = rand(2,5);
+  const b = rand(1,3);
+
+  const series = [
+    start,
+    start + a,
+    start + a - b,
+    start + a - b + a,
+    start + a - b + a - b,
+    "?"
+  ];
+
+  const answer = start + a - b + a - b + a;
+
+  return {
+    series,
+    answer,
+    options: uniqueOptions(answer, () => answer + rand(-6,6))
+  };
+};
+
+// Double step: ×2, +1, ×2, +1, ...
+// Example: 3,6,7,14,15,?
+const doubleStepSeries = () => {
+  const start = rand(2,5);
+
+  const series = [
+    start,
+    start * 2,
+    start * 2 + 1,
+    (start * 2 + 1) * 2,
+    (start * 2 + 1) * 2 + 1,
+    "?"
+  ];
+
+  const answer = ((start * 2 + 1) * 2 + 1) * 2;
+
+  return {
+    series,
+    answer,
+    options: uniqueOptions(answer, () => answer + rand(-10,10))
+  };
+};
+
+// Mixed operations: ×3,+2,×3,+2,...
+// Example: 3,9,11,33,35,?
+const mixedOperations = () => {
+  const start = rand(2,5);
+
+  const series = [
+    start,
+    start * 3,
+    start * 3 + 2,
+    (start * 3 + 2) * 3,
+    (start * 3 + 2) * 3 + 2,
+    "?"
+  ];
+
+  const answer = ((start * 3 + 2) * 3 + 2) * 3;
+
+  return {
+    series,
+    answer,
+    options: uniqueOptions(answer, () => answer + rand(-20,20))
+  };
+};
+
+/* ---------------- LETTER PATTERN PUZZLES ---------------- */
+
+// Simple forward letter steps (e.g. B E H K ?)
+const letterStepSeries = () => {
+  const step = rand(2,4);
+  const start = rand(0, 25 - step * 4);
+
+  const series = [
+    letters[start],
+    letters[start + step],
+    letters[start + step * 2],
+    letters[start + step * 3],
+    "?"
+  ];
+
+  const answer = letters[start + step * 4];
+
+  return {
+    series,
+    answer,
+    options: uniqueOptions(answer, () => letters[rand(0,25)])
+  };
+};
+
+// Reverse alphabet pattern (e.g. Z X V T ?)
+const reverseLetterSeries = () => {
+  const step = rand(1,3);
+  const start = rand(3 + step * 4, 25); // ensure we don't go below 0 when stepping back
+
+  const series = [
+    letters[start],
+    letters[start - step],
+    letters[start - step * 2],
+    letters[start - step * 3],
+    "?"
+  ];
+
+  const answer = letters[start - step * 4];
+
+  return {
+    series,
+    answer,
+    options: uniqueOptions(answer, () => letters[rand(0,25)])
+  };
+};
+
+// Alternating letter jumps (e.g. A D B E C ?)
+const alternatingLetters = () => {
+  const start = rand(0,20); // start+5 must be <=25
+
+  const series = [
+    letters[start],
+    letters[start + 3],
+    letters[start + 1],
+    letters[start + 4],
+    letters[start + 2],
+    "?"
+  ];
+
+  const answer = letters[start + 5];
+
+  return {
+    series,
+    answer,
+    options: uniqueOptions(answer, () => letters[rand(0,25)])
+  };
+};
+
+// Pair pattern like AZ BY CX ?
+const pairSeries = () => {
+  const start = rand(0,22); // up to start+3 <=25
+
+  const series = [
+    letters[start] + letters[25 - start],
+    letters[start + 1] + letters[24 - start],
+    letters[start + 2] + letters[23 - start],
+    "?"
+  ];
+
+  const answer = letters[start + 3] + letters[22 - start];
+
+  return {
+    series,
+    answer,
+    options: shuffle([
+      answer,
+      letters[start + 3] + letters[21 - start],
+      letters[start + 4] + letters[22 - start],
+      letters[start + 2] + letters[22 - start]
+    ])
+  };
+};
+
+// Alphabet growth using increasing gaps (e.g. A C F J ?)
+const alphabetGrowth = () => {
+  const start = rand(0,10); // start+14 <=24
+
+  const series = [
+    letters[start],
+    letters[start + 2],
+    letters[start + 5],
+    letters[start + 9],
+    "?"
+  ];
+
+  const answer = letters[start + 14];
+
+  return {
+    series,
+    answer,
+    options: uniqueOptions(answer, () => letters[rand(0,25)])
+  };
+};
+
+/* ---------------- PUZZLE SELECTOR ---------------- */
+
+const getPuzzlePool = (difficulty) => {
+  if (difficulty === "easy") {
+    return [
+      arithmetic,
+      geometric,
+      letterSeries,
+      letterStepSeries
+    ];
+  }
+
+  if (difficulty === "medium") {
+    return [
+      arithmetic,
+      geometric,
+      squares,
+      cubes,
+      primeSeries,
+      alternatingSeries,
+      letterStepSeries,
+      reverseLetterSeries
+    ];
+  }
+
+  // hard
+  return [
+    squares,
+    cubes,
+    primeSeries,
+    fibonacci,
+    fractions,
+    alternatingSeries,
+    doubleStepSeries,
+    mixedOperations,
+    // additional letter-based puzzles for variety
+    letterStepSeries,
+    reverseLetterSeries,
+    alternatingLetters,
+    pairSeries,
+    alphabetGrowth
+  ];
+};
+
+/* ---------------- COMPONENT ---------------- */
+
+const PuzzleSolver = ({
+  onComplete,
+  isPaused,
+  difficulty="easy",
+  onScoreUpdate,
+  resetKey=0,
+  dailyChallengeTasks
+}) => {
+
+  const configMap={
+    easy:{count:8,time:15},
+    medium:{count:15,time:18},
+    hard:{count:20,time:22}
   };
 
+  const baseConfig=configMap[difficulty]||configMap.easy;
+  const count=dailyChallengeTasks??baseConfig.count;
+  const puzzleTime=baseConfig.time;
+
   const puzzles = useMemo(() => {
-    // EASY: 2x2 and 3x3 from your examples (1–10)
-    const easy = [
-      // 1
-      {
-        size: 3,
-        grid: [
-          ['square', 'circle', 'square'],
-          ['triangle', 'circle', 'triangle'],
-          ['square', 'question', 'square']
-        ],
-        options: ['circle', 'triangle', 'square', 'plus'],
-        correctIndex: 0
-      },
-      // 2
-      {
-        size: 3,
-        grid: [
-          ['circle', 'circle', 'circle'],
-          ['triangle', 'triangle', 'triangle'],
-          ['plus', 'question', 'plus']
-        ],
-        options: ['square', 'triangle', 'circle', 'plus'],
-        correctIndex: 3
-      },
-      // 3
-      {
-        size: 3,
-        grid: [
-          ['square', 'circle', 'triangle'],
-          ['square', 'circle', 'triangle'],
-          ['square', 'question', 'triangle']
-        ],
-        options: ['circle', 'square', 'triangle', 'plus'],
-        correctIndex: 0
-      },
-      // 4
-      {
-        size: 3,
-        grid: [
-          ['square', 'circle', 'square'],
-          ['circle', 'square', 'circle'],
-          ['square', 'circle', 'question']
-        ],
-        options: ['square', 'triangle', 'circle', 'plus'],
-        correctIndex: 0
-      },
-      // 5
-      {
-        size: 3,
-        grid: [
-          ['triangle', 'circle', 'square'],
-          ['plus', 'triangle', 'circle'],
-          ['square', 'plus', 'question']
-        ],
-        options: ['triangle', 'circle', 'square', 'plus'],
-        correctIndex: 0
-      },
-      // 6 (2x2)
-      {
-        size: 2,
-        grid: [
-          ['square', 'triangle'],
-          ['square', 'question']
-        ],
-        options: ['triangle', 'square', 'circle', 'plus'],
-        correctIndex: 0
-      },
-      // 7
-      {
-        size: 3,
-        grid: [
-          ['square', 'circle', 'square'],
-          ['triangle', 'plus', 'triangle'],
-          ['square', 'circle', 'question']
-        ],
-        options: ['triangle', 'square', 'circle', 'plus'],
-        correctIndex: 1
-      },
-      // 8
-      {
-        size: 3,
-        grid: [
-          ['plus', 'square', 'circle'],
-          ['plus', 'triangle', 'circle'],
-          ['plus', 'square', 'question']
-        ],
-        options: ['triangle', 'circle', 'square', 'plus'],
-        correctIndex: 1
-      },
-      // 9
-      {
-        size: 3,
-        grid: [
-          ['circle', 'triangle', 'circle'],
-          ['square', 'plus', 'square'],
-          ['circle', 'triangle', 'question']
-        ],
-        options: ['circle', 'triangle', 'square', 'plus'],
-        correctIndex: 0
-      },
-      // 10
-      {
-        size: 3,
-        grid: [
-          ['square', 'circle', 'square'],
-          ['triangle', 'plus', 'triangle'],
-          ['square', 'circle', 'question']
-        ],
-        options: ['square', 'triangle', 'circle', 'plus'],
-        correctIndex: 0
-      }
-    ];
+    const basePool = shuffle(getPuzzlePool(difficulty));
+    // Rotate pool based on resetKey so restart changes pattern sequence
+    const offset = basePool.length > 0 ? resetKey % basePool.length : 0;
+    const rotatedPool =
+      offset === 0
+        ? basePool
+        : [...basePool.slice(offset), ...basePool.slice(0, offset)];
 
-    // MEDIUM: 3x3 and 4x4 from 16–20, 36–40 where appropriate
-    const medium = [
-      // 16
-      {
-        size: 3,
-        grid: [
-          ['square', 'circle', 'triangle'],
-          ['plus', 'triangle', 'circle'],
-          ['square', 'circle', 'question']
-        ],
-        options: ['triangle', 'circle', 'square', 'plus'],
-        correctIndex: 0
-      },
-      // 17
-      {
-        size: 3,
-        grid: [
-          ['square', 'circle', 'triangle'],
-          ['triangle', 'square', 'circle'],
-          ['circle', 'triangle', 'question']
-        ],
-        options: ['square', 'circle', 'triangle', 'plus'],
-        correctIndex: 0
-      },
-      // 18
-      {
-        size: 3,
-        grid: [
-          ['square', 'circle', 'triangle'],
-          ['circle', 'triangle', 'square'],
-          ['triangle', 'square', 'question']
-        ],
-        options: ['square', 'circle', 'triangle', 'plus'],
-        correctIndex: 1
-      },
-      // 19
-      {
-        size: 3,
-        grid: [
-          ['square', 'plus', 'triangle'],
-          ['circle', 'plus', 'circle'],
-          ['triangle', 'plus', 'question']
-        ],
-        options: ['circle', 'triangle', 'square', 'plus'],
-        correctIndex: 1
-      },
-      // 20
-      {
-        size: 3,
-        grid: [
-          ['circle', 'square', 'triangle'],
-          ['plus', 'circle', 'plus'],
-          ['triangle', 'square', 'question']
-        ],
-        options: ['circle', 'triangle', 'square', 'plus'],
-        correctIndex: 0
-      },
-      // 36 (4x4)
-      {
-        size: 4,
-        grid: [
-          ['square', 'circle', 'triangle', 'plus'],
-          ['circle', 'triangle', 'plus', 'square'],
-          ['triangle', 'plus', 'square', 'circle'],
-          ['plus', 'square', 'circle', 'question']
-        ],
-        options: ['square', 'circle', 'triangle', 'plus'],
-        correctIndex: 2
-      },
-      // 37 (4x4)
-      {
-        size: 4,
-        grid: [
-          ['square', 'circle', 'triangle', 'plus'],
-          ['circle', 'square', 'plus', 'triangle'],
-          ['triangle', 'plus', 'square', 'circle'],
-          ['plus', 'triangle', 'circle', 'question']
-        ],
-        options: ['square', 'circle', 'triangle', 'plus'],
-        correctIndex: 0
-      }
-    ];
-
-    // HARD: more complex 3x3 / 4x4 from 38–40 and a couple of mixes
-    const hard = [
-      // 38
-      {
-        size: 3,
-        grid: [
-          ['circle', 'triangle', 'circle'],
-          ['triangle', 'square', 'triangle'],
-          ['circle', 'triangle', 'question']
-        ],
-        options: ['square', 'triangle', 'circle', 'plus'],
-        correctIndex: 2
-      },
-      // 39
-      {
-        size: 4,
-        grid: [
-          ['square', 'circle', 'circle', 'square'],
-          ['triangle', 'plus', 'plus', 'triangle'],
-          ['triangle', 'plus', 'plus', 'triangle'],
-          ['square', 'circle', 'circle', 'question']
-        ],
-        options: ['square', 'triangle', 'circle', 'plus'],
-        correctIndex: 0
-      },
-      // 40
-      {
-        size: 4,
-        grid: [
-          ['square', 'circle', 'triangle', 'plus'],
-          ['circle', 'triangle', 'plus', 'square'],
-          ['triangle', 'plus', 'square', 'circle'],
-          ['plus', 'square', 'circle', 'question']
-        ],
-        options: ['square', 'circle', 'triangle', 'plus'],
-        correctIndex: 2
-      }
-    ];
-
-    if (difficulty === 'easy') return easy;
-    if (difficulty === 'medium') return medium;
-    return hard;
-  }, [difficulty]);
-
-  const totalPuzzles = puzzles.length;
-
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [selectedOption, setSelectedOption] = useState(null);
-  const [correctCount, setCorrectCount] = useState(0);
-  const [score, setScore] = useState(0);
-  const [level, setLevel] = useState(1);
-  const [levelCorrect, setLevelCorrect] = useState(0);
-
-  const onCompleteRef = useRef(onComplete);
-  const onScoreUpdateRef = useRef(onScoreUpdate);
-
-  useEffect(() => {
-    onCompleteRef.current = onComplete;
-    onScoreUpdateRef.current = onScoreUpdate;
-  }, [onComplete, onScoreUpdate]);
-
-  useEffect(() => {
-    setCurrentIndex(0);
-    setSelectedOption(null);
-    setCorrectCount(0);
-    setScore(0);
-    setLevel(1);
-    setLevelCorrect(0);
-  }, [difficulty]);
-
-  useEffect(() => {
-    if (currentIndex >= totalPuzzles) {
-      const accuracy = totalPuzzles > 0 ? Math.round((correctCount / totalPuzzles) * 100) : 0;
-      onCompleteRef.current?.({
-        score,
-        accuracy,
-        correctAnswers: correctCount
-      });
+    const generated = [];
+    for (let i = 0; i < count; i += 1) {
+      const generator = rotatedPool[i % rotatedPool.length];
+      generated.push(generator());
     }
-  }, [currentIndex, totalPuzzles, correctCount, score]);
 
-  if (currentIndex >= totalPuzzles) {
-    return (
+    // Extra shuffle so order feels different across sessions
+    return shuffle(generated);
+  }, [difficulty, count, resetKey]);
+
+  const [index,setIndex]=useState(0);
+  const [selected,setSelected]=useState(null);
+  const [score,setScore]=useState(0);
+  const [correct,setCorrect]=useState(0);
+  const [time,setTime]=useState(puzzleTime);
+  const [gameActive,setGameActive]=useState(false);
+
+  const timerRef=useRef(null);
+
+  /* ---------- INITIALIZE GAME ---------- */
+
+  useEffect(()=>{
+    // Start immediately on mount and restart whenever `resetKey` changes.
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    setIndex(0);
+    setSelected(null);
+    setScore(0);
+    setCorrect(0);
+    setTime(puzzleTime);
+    setGameActive(true);
+  },[resetKey,puzzleTime,difficulty]);
+
+  /* ---------- TIMER ---------- */
+
+  useEffect(()=>{
+
+    if(!gameActive) return;
+
+    if(timerRef.current) clearInterval(timerRef.current);
+
+    if(isPaused) return;
+
+    timerRef.current=setInterval(()=>{
+
+      setTime(t=>{
+
+        if(t<=1){
+
+          clearInterval(timerRef.current);
+          setIndex(i=>i+1);
+          return puzzleTime;
+
+        }
+
+        return t-1;
+
+      });
+
+    },1000);
+
+    return()=>clearInterval(timerRef.current);
+
+  },[index,isPaused,gameActive,puzzleTime]);
+
+  /* ---------- COMPLETE GAME ---------- */
+
+  useEffect(()=>{
+
+    if(index>=count && gameActive){
+
+      const accuracy=Math.round((correct/count)*100);
+
+      onComplete?.({
+        score:Math.round(score),
+        accuracy,
+        correctAnswers:correct
+      });
+
+    }
+
+  },[index,count,correct,score,gameActive,onComplete]);
+
+  if(!gameActive){
+
+    return(
       <div className="text-center p-8">
-        <DifficultyIndicator difficulty={difficulty} />
+        <div className="text-gray-600 mt-4">Preparing puzzles...</div>
+      </div>
+    );
+
+  }
+
+  if(index>=count){
+
+    return(
+      <div className="text-center p-8">
         <div className="text-gray-600 mt-4">Loading results...</div>
       </div>
     );
+
   }
 
-  const currentPuzzle = puzzles[currentIndex];
+  const puzzle=puzzles[index];
 
-  const handleOptionClick = (index) => {
-    if (isPaused || currentIndex >= totalPuzzles) return;
-    if (selectedOption !== null) return;
+  /* ---------- ANSWER ---------- */
 
-    setSelectedOption(index);
-    const isCorrect = index === currentPuzzle.correctIndex;
+  const handleClick=(i)=>{
 
-    setCorrectCount(prev => prev + (isCorrect ? 1 : 0));
+    if(selected!==null) return;
 
-    const pointsPerPuzzle = 100 / totalPuzzles;
-    setScore(prev => {
-      const nextScore = isCorrect ? prev + pointsPerPuzzle : prev;
-      const rounded = Math.round(nextScore);
-      const accuracy = Math.round(((correctCount + (isCorrect ? 1 : 0)) / (currentIndex + 1)) * 100);
-      onScoreUpdateRef.current?.(rounded, accuracy);
-      return rounded;
+    setSelected(i);
+
+    const choice=puzzle.options[i];
+    const isCorrect=choice===puzzle.answer;
+
+    if(isCorrect) setCorrect(c=>c+1);
+
+    const points=Math.floor(100/count);
+
+    setScore(prev=>{
+      const next=isCorrect?prev+points:prev;
+      onScoreUpdate?.(Math.round(next));
+      return next;
     });
 
-    if (isCorrect) {
-      setLevelCorrect(prev => {
-        const next = prev + 1;
-        if (next >= config.levelTarget) {
-          setLevel(lvl => lvl + 1);
-          return 0;
-        }
-        return next;
-      });
-    } else {
-      setLevelCorrect(0);
-      setLevel(lvl => Math.max(1, lvl - 1));
-    }
+    setTimeout(()=>{
+      setIndex(i=>i+1);
+      setSelected(null);
+      setTime(puzzleTime);
+    },500);
 
-    setTimeout(() => {
-      setCurrentIndex(prev => prev + 1);
-      setSelectedOption(null);
-    }, 600);
   };
 
-  return (
-    <div className={`text-center ${isPaused ? 'opacity-50 pointer-events-none select-none' : ''}`}>
-      <DifficultyIndicator difficulty={difficulty} />
+  /* ---------- UI ---------- */
 
-      <div className="mb-6">
-        <div className="flex justify-center gap-10 mb-3">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-gray-700">
-              {currentIndex + 1}/{totalPuzzles}
-            </div>
-            <div className="text-xs text-gray-500 uppercase tracking-wide">Puzzles</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-indigo-600">{level}</div>
-            <div className="text-xs text-gray-500 uppercase tracking-wide">Level</div>
-          </div>
-        </div>
+  return(
 
-        <div className="max-w-xs mx-auto">
-          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-indigo-500 to-pink-500 transition-all"
-              style={{
-                width: `${Math.min(100, (levelCorrect / config.levelTarget) * 100)}%`
-              }}
-            />
-          </div>
-          <div className="mt-1 text-[11px] text-gray-500 text-center">
-            Next level in {Math.max(0, config.levelTarget - levelCorrect)} correct puzzle
-            {config.levelTarget - levelCorrect === 1 ? '' : 's'}
-          </div>
-        </div>
+  <div className="text-center relative">
+  {isPaused && (
+    <div className="absolute inset-0 z-10 rounded-xl bg-white/60 backdrop-blur-sm flex items-center justify-center">
+      <div className="text-center">
+        <div className="text-5xl mb-2">⏸️</div>
+        <div className="text-lg font-bold text-gray-800">Paused</div>
+        <div className="text-sm text-gray-600">Question hidden until you resume</div>
       </div>
-
-      <motion.div
-        key={`${currentIndex}-${difficulty}`}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-br from-white via-slate-50 to-indigo-50 rounded-2xl shadow-xl p-8 max-w-md mx-auto border border-white/60"
-      >
-        <h3 className="text-xl font-bold text-gray-800 mb-4">
-          Choose the shape that correctly fills the question mark.
-        </h3>
-
-        {/* Visible grid with strong lines */}
-        <div className="inline-block mb-6">
-          <div
-            className="grid bg-gray-200"
-            style={{
-              gridTemplateColumns: `repeat(${currentPuzzle.size}, 52px)`,
-              gridTemplateRows: `repeat(${currentPuzzle.size}, 52px)`
-            }}
-          >
-            {currentPuzzle.grid.map((row, rowIndex) =>
-              row.map((cell, colIndex) => (
-                <div
-                  key={`${rowIndex}-${colIndex}`}
-                  className="bg-white flex items-center justify-center"
-                  style={{
-                    borderRight:
-                      colIndex === currentPuzzle.size - 1 ? 'none' : '1px solid #E5E7EB',
-                    borderBottom:
-                      rowIndex === currentPuzzle.size - 1 ? 'none' : '1px solid #E5E7EB'
-                  }}
-                >
-                  {cell === 'question' ? (
-                    <span className="text-xl font-bold text-gray-500">?</span>
-                  ) : cell ? (
-                    <span className="text-2xl text-gray-800">{renderShape(cell)}</span>
-                  ) : null}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          {currentPuzzle.options.map((opt, index) => {
-            const isCorrectOption = index === currentPuzzle.correctIndex;
-            const isSelected = selectedOption === index;
-
-            let borderClass = 'border-gray-200';
-            if (selectedOption !== null) {
-              if (isSelected && isCorrectOption) borderClass = 'border-green-500';
-              else if (isSelected && !isCorrectOption) borderClass = 'border-red-500';
-              else if (isCorrectOption) borderClass = 'border-green-400';
-            }
-
-            return (
-              <button
-                key={index}
-                type="button"
-                onClick={() => handleOptionClick(index)}
-                className={`
-                  bg-white rounded-xl border-2 ${borderClass}
-                  flex items-center justify-center py-3 text-2xl
-                  transition-all duration-200
-                  ${isPaused ? 'cursor-not-allowed opacity-60' : 'hover:shadow-md cursor-pointer'}
-                `}
-              >
-                {renderShape(opt)}
-              </button>
-            );
-          })}
-        </div>
-      </motion.div>
     </div>
+  )}
+  <div className={isPaused ? "opacity-50 pointer-events-none select-none" : ""}>
+
+  <div className="flex justify-center gap-10 mb-6">
+
+  <div>
+  <div className="text-2xl font-bold">{index+1}/{count}</div>
+  <div className="text-xs text-gray-500">PUZZLES</div>
+  </div>
+
+  <div>
+  <div className="text-2xl font-bold text-orange-600">{time}s</div>
+  <div className="text-xs text-gray-500">TIME</div>
+  </div>
+
+  </div>
+
+  <motion.div
+  key={index}
+  initial={{opacity:0,y:20}}
+  animate={{opacity:1,y:0}}
+  className="bg-white rounded-xl shadow-lg p-8 max-w-md mx-auto"
+  >
+
+  <h3 className="text-lg font-bold mb-4">
+  What comes next?
+  </h3>
+
+  <div className="text-2xl font-mono mb-6 tracking-wide">
+  {puzzle.series.join("   ")}
+  </div>
+
+  <div className="grid grid-cols-2 gap-3">
+
+  {puzzle.options.map((opt,i)=>{
+
+  const isSelected=selected===i;
+  const isCorrect=opt===puzzle.answer;
+
+  let border="border-gray-200";
+
+  if(selected!==null){
+
+  if(isSelected && isCorrect) border="border-green-500";
+  else if(isSelected && !isCorrect) border="border-red-500";
+  else if(isCorrect) border="border-green-400";
+
+  }
+
+  return(
+
+  <button
+  key={i}
+  onClick={()=>handleClick(i)}
+  className={`border-2 ${border} rounded-lg py-3 text-lg font-bold`}
+  >
+  {opt}
+  </button>
+
   );
+
+  })}
+
+  </div>
+
+  </motion.div>
+
+  </div>
+  </div>
+
+  );
+
 };
 
 export default PuzzleSolver;
-
-

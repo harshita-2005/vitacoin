@@ -76,7 +76,9 @@ const transactionSchema = new mongoose.Schema({
     time: Number,
     accuracy: Number,
     xpEarned: Number,
-    levelUnlocked: Boolean
+    levelUnlocked: Boolean,
+    // MCQ batch: subject names for CS Fundamentals (e.g. ['OS', 'CN'])
+    mcqSubjects: [String]
   },
   status: {
     type: String,
@@ -150,8 +152,14 @@ transactionSchema.statics.getUserHistory = function(userId, options = {}) {
   } = options;
 
   const query = { user: userId, isVisible: true };
-  
-  if (type) query.type = type;
+
+  if (type === 'earned') {
+    query.amount = { $gt: 0 };
+  } else if (type === 'spent') {
+    query.amount = { $lt: 0 };
+  } else if (type) {
+    query.type = type;
+  }
   if (category) query.category = category;
   if (startDate || endDate) {
     query.createdAt = {};

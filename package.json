@@ -21,7 +21,8 @@
   "author": "Vitacoin Team",
   "license": "MIT",
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "pptxgenjs": "^4.0.1"
   },
   "dependencies": {
     "mongodb": "^6.20.0"

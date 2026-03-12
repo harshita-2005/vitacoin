@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import DifficultyIndicator from './DifficultyIndicator';
 
 const WORD_BANK = {
   easy: [
@@ -27,7 +26,8 @@ const WordScramble = ({
   timeLimit,
   difficulty = 'easy',
   onScoreUpdate,
-  resetKey = 0
+  resetKey = 0,
+  dailyChallengeTasks
 }) => {
   const [currentWord, setCurrentWord] = useState('');
   const [scrambledWord, setScrambledWord] = useState('');
@@ -36,9 +36,9 @@ const WordScramble = ({
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const [score, setScore] = useState(0); // Track score separately (like MathQuiz)
   const [timeRemaining, setTimeRemaining] = useState(null);
-  const [streak, setStreak] = useState(0);
+  const streakRef = useRef(0);
   const [level, setLevel] = useState(1); // Many levels inside the same difficulty
-  const [levelCorrect, setLevelCorrect] = useState(0); // Correct answers towards next level
+  const levelCorrectRef = useRef(0);
   const [feedback, setFeedback] = useState(null); // 'correct' | 'wrong' | null
 
   const timerRef = useRef(null);
@@ -58,27 +58,31 @@ const WordScramble = ({
 
   // ---------------- CONFIG ----------------
   const config = useMemo(() => {
+    let totalWords = 18;
     switch (difficulty) {
       case 'easy':
+        totalWords = 18;
         return {
           words: WORD_BANK.easy,
-          totalWords: 18,
+          totalWords: dailyChallengeTasks ?? totalWords,
           baseTimeLimit: 12,
           wordLength: '3-5 letters',
           levelWords: 3
         };
       case 'medium':
+        totalWords = 24;
         return {
           words: WORD_BANK.medium,
-          totalWords: 24,
+          totalWords: dailyChallengeTasks ?? totalWords,
           baseTimeLimit: 14,
           wordLength: '5-7 letters',
           levelWords: 3
         };
       case 'hard':
+        totalWords = 30;
         return {
           words: WORD_BANK.hard,
-          totalWords: 30,
+          totalWords: dailyChallengeTasks ?? totalWords,
           baseTimeLimit: 18,
           wordLength: '7-12 letters',
           levelWords: 3
@@ -86,13 +90,13 @@ const WordScramble = ({
       default:
         return {
           words: ['CAT', 'DOG'],
-          totalWords: 5,
+          totalWords: dailyChallengeTasks ?? 5,
           baseTimeLimit: 10,
           wordLength: '3-4 letters',
           levelWords: 3
         };
     }
-  }, [difficulty]);
+  }, [difficulty, dailyChallengeTasks]);
 
   // ---------------- HELPERS ----------------
   const scrambleWord = (word) => {
@@ -170,8 +174,8 @@ const WordScramble = ({
           }
 
           // Time up counts as a miss: reset streak/level progress slightly
-          setStreak(0);
-          setLevelCorrect(0);
+          streakRef.current = 0;
+          levelCorrectRef.current = 0;
 
           // Move to next word automatically
           setWordCount(count => {
@@ -260,9 +264,9 @@ const WordScramble = ({
       setScore(0); // Reset score
       scoreRef.current = 0; // Reset ref
       setTimeRemaining(null);
-      setStreak(0);
+      streakRef.current = 0;
       setLevel(1);
-      setLevelCorrect(0);
+      levelCorrectRef.current = 0;
       setFeedback(null);
       isInitializedRef.current = false;
       lastResetKeyRef.current = resetKey;
@@ -330,22 +334,16 @@ const WordScramble = ({
     setFeedback(isCorrect ? 'correct' : 'wrong');
 
     if (isCorrect) {
-      setStreak(prev => prev + 1);
-
-      // Track progress towards next level using only correct answers
-      setLevelCorrect(prev => {
-        const next = prev + 1;
-        if (next >= config.levelWords) {
-          setLevel(lvl => lvl + 1);
-          return 0; // New level, reset progress bar
-        }
-        return next;
-      });
+      streakRef.current += 1;
+      levelCorrectRef.current += 1;
+      if (levelCorrectRef.current >= config.levelWords) {
+        setLevel((lvl) => lvl + 1);
+        levelCorrectRef.current = 0;
+      }
     } else {
-      setStreak(0);
-      // Drop one level on mistake (but never below 1) and reset level progress
-      setLevel(lvl => Math.max(1, lvl - 1));
-      setLevelCorrect(0);
+      streakRef.current = 0;
+      setLevel((lvl) => Math.max(1, lvl - 1));
+      levelCorrectRef.current = 0;
     }
 
     // Clear feedback after a short delay
@@ -394,47 +392,21 @@ const WordScramble = ({
   // ---------------- UI ----------------
   return (
     <div className={`text-center ${isPaused ? 'opacity-50 pointer-events-none select-none' : ''}`}>
-      <DifficultyIndicator difficulty={difficulty} />
-
-      {/* Compact stats row: words, level, timer only */}
-      <div className="mb-6">
-        <div className="flex justify-center gap-10 mb-3">
-          <div>
-            <div className="text-2xl font-bold">{wordCount}/{config.totalWords}</div>
-            <div className="text-xs text-gray-500 uppercase tracking-wide">Words</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-indigo-600">{level}</div>
-            <div className="text-xs text-gray-500 uppercase tracking-wide">Level</div>
-          </div>
-          {timeRemaining !== null && (
-            <div>
-              <div
-                className={`text-2xl font-bold ${
-                  timeRemaining <= 5 ? 'text-red-600 animate-pulse' : 'text-orange-600'
-                }`}
-              >
-                {timeRemaining}s
-              </div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide">Time Left</div>
-            </div>
-          )}
+      {/* Same pattern as Puzzle Solver / Verbal IQ: only count + timer */}
+      <div className="flex justify-center gap-10 mb-6">
+        <div>
+          <div className="text-2xl font-bold">{wordCount}/{config.totalWords}</div>
+          <div className="text-xs text-gray-500">WORDS</div>
         </div>
-
-        {/* Level progress bar: only correct answers move this */}
-        <div className="max-w-xs mx-auto">
-          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-indigo-500 to-pink-500 transition-all"
-              style={{
-                width: `${Math.min(100, (levelCorrect / config.levelWords) * 100)}%`
-              }}
-            />
+        <div>
+          <div
+            className={`text-2xl font-bold ${
+              timeRemaining !== null && timeRemaining <= 5 ? 'text-red-600 animate-pulse' : 'text-orange-600'
+            }`}
+          >
+            {timeRemaining !== null ? `${timeRemaining}s` : '–'}
           </div>
-          <div className="mt-1 text-[11px] text-gray-500 text-center">
-            Next level in {Math.max(0, config.levelWords - levelCorrect)} correct word
-            {config.levelWords - levelCorrect === 1 ? '' : 's'}
-          </div>
+          <div className="text-xs text-gray-500">TIME</div>
         </div>
       </div>
 
@@ -442,11 +414,11 @@ const WordScramble = ({
         key={wordCount}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative bg-gradient-to-br from-white via-slate-50 to-indigo-50 rounded-2xl shadow-xl p-8 max-w-md mx-auto border border-white/60"
+        className="relative bg-white rounded-xl shadow-lg p-8 max-w-md mx-auto"
       >
         {/* Pause: mask the word so user can't "think for free" */}
         {isPaused && (
-          <div className="absolute inset-0 rounded-2xl bg-white/60 backdrop-blur-sm flex items-center justify-center">
+          <div className="absolute inset-0 rounded-xl bg-white/60 backdrop-blur-sm flex items-center justify-center">
             <div className="text-center">
               <div className="text-5xl mb-2">⏸️</div>
               <div className="text-lg font-bold text-gray-800">Paused</div>
@@ -472,14 +444,6 @@ const WordScramble = ({
             {isPaused ? maskedWord : scrambledWord}
           </span>
         </motion.div>
-
-        {/* Subtle helper text */}
-        <div
-          className="text-xs text-gray-500 mb-4"
-          title={`Current streak: ${streak} correct in a row`}
-        >
-          Level {level}
-        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <input

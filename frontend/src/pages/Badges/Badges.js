@@ -70,7 +70,7 @@ const Badges = () => {
 
   const getRarityBorder = (rarity) => {
     const borders = {
-      common: 'border-gray-300',
+      common: 'border-warm-border',
       uncommon: 'border-green-300',
       rare: 'border-blue-300',
       epic: 'border-purple-300',
@@ -102,24 +102,24 @@ const Badges = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Badges & Achievements</h1>
-          <p className="text-gray-600">
+          <h1 className="text-2xl font-bold text-warm-text">Badges & Achievements</h1>
+          <p className="text-warm-textSecondary">
             Track your progress and unlock new achievements
           </p>
         </div>
         <div className="mt-4 sm:mt-0">
           <div className="flex items-center space-x-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-primary-600">
+              <div className="text-2xl font-bold text-warm-primary">
                 {userBadges.length}
               </div>
-              <div className="text-sm text-gray-500">Earned</div>
+              <div className="text-sm text-warm-textSecondary">Earned</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-gray-600">
+              <div className="text-2xl font-bold text-warm-text">
                 {badges.length}
               </div>
-              <div className="text-sm text-gray-500">Total</div>
+              <div className="text-sm text-warm-textSecondary">Total</div>
             </div>
             <button
               onClick={handleRefreshBadges}
@@ -139,7 +139,7 @@ const Badges = () => {
         className="card"
       >
         <div className="card-header">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+          <h3 className="text-lg font-semibold text-warm-text flex items-center">
             <FiFilter className="w-5 h-5 mr-2" />
             Filters
           </h3>
@@ -147,7 +147,7 @@ const Badges = () => {
         <div className="card-body">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-warm-text mb-1">
                 Category
               </label>
               <select
@@ -165,7 +165,7 @@ const Badges = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-warm-text mb-1">
                 Rarity
               </label>
               <select
@@ -208,27 +208,27 @@ const Badges = () => {
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: index * 0.1 }}
-                  className="bg-gradient-to-br from-primary-50 to-primary-100 border border-primary-200 rounded-lg p-4"
+                  className="bg-warm-container border border-warm-border rounded-lg p-4"
                 >
                   <div className="text-center mb-3">
                     <div className="text-2xl mb-2">{badge.icon}</div>
-                    <h4 className="font-semibold text-gray-900 text-sm">{badge.name}</h4>
-                    <p className="text-xs text-gray-600 mt-1">{badge.description}</p>
+                    <h4 className="font-semibold text-warm-text text-sm">{badge.name}</h4>
+                    <p className="text-xs text-warm-textSecondary mt-1">{badge.description}</p>
                   </div>
                   
                   {/* Progress Bar */}
                   <div className="mb-3">
-                    <div className="flex justify-between text-xs text-gray-600 mb-1">
+                    <div className="flex justify-between text-xs text-warm-textSecondary mb-1">
                       <span>Progress</span>
                       <span>{badge.progressPercentage}%</span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-warm-secondary rounded-full h-2">
                       <div 
-                        className="bg-gradient-to-r from-primary-500 to-primary-600 h-2 rounded-full transition-all duration-300"
+                        className="bg-warm-primary h-2 rounded-full transition-all duration-300"
                         style={{ width: `${badge.progressPercentage}%` }}
                       />
                     </div>
-                    <div className="text-xs text-gray-500 mt-1 text-center">
+                    <div className="text-xs text-warm-textSecondary mt-1 text-center">
                       {badge.progress} / {badge.maxProgress}
                     </div>
                   </div>
@@ -251,7 +251,7 @@ const Badges = () => {
         className="card"
       >
         <div className="card-header">
-          <h3 className="text-lg font-semibold text-gray-900">
+          <h3 className="text-lg font-semibold text-warm-text">
             Available Badges ({filteredBadges.length})
           </h3>
         </div>
@@ -280,7 +280,7 @@ const Badges = () => {
                   {/* Badge Icon */}
                   <div className="text-center mb-4">
                     <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center text-2xl ${
-                      hasBadge(badge._id) ? 'bg-gradient-to-r from-primary-500 to-secondary-500' : 'bg-gray-300'
+                      hasBadge(badge._id) ? 'bg-warm-primary' : 'bg-warm-secondary'
                     }`}>
                       {badge.icon}
                     </div>
@@ -288,10 +288,10 @@ const Badges = () => {
 
                   {/* Badge Info */}
                   <div className="text-center">
-                    <h4 className="font-semibold text-gray-900 mb-2">
-                      {badge.name}
-                    </h4>
-                    <p className="text-sm text-gray-600 mb-3">
+<h4 className="font-semibold text-warm-text mb-2">
+                    {badge.name}
+                  </h4>
+                  <p className="text-sm text-warm-textSecondary mb-3">
                       {badge.description}
                     </p>
 
@@ -302,7 +302,7 @@ const Badges = () => {
 
                     {/* Requirements */}
                     {badge.requirements && (
-                      <div className="text-xs text-gray-500 space-y-1">
+                      <div className="text-xs text-warm-textSecondary space-y-1">
                         {badge.requirements.coinsRequired > 0 && (
                           <div>Requires {badge.requirements.coinsRequired} coins</div>
                         )}
@@ -318,7 +318,7 @@ const Badges = () => {
                     {/* Progress Bar for Unearned Badges */}
                     {!hasBadge(badge._id) && (
                       <div className="mt-3">
-                        <div className="flex justify-between text-xs text-gray-500 mb-1">
+                        <div className="flex justify-between text-xs text-warm-textSecondary mb-1">
                           <span>Progress</span>
                           <span>
                             {(() => {
@@ -327,9 +327,9 @@ const Badges = () => {
                             })()}
                           </span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="w-full bg-warm-secondary rounded-full h-2">
                           <div 
-                            className="bg-gradient-to-r from-primary-500 to-primary-600 h-2 rounded-full transition-all duration-300"
+                            className="bg-warm-primary h-2 rounded-full transition-all duration-300"
                             style={{ 
                               width: (() => {
                                 const progress = badgeProgress.find(p => p.badge._id === badge._id);
@@ -338,7 +338,7 @@ const Badges = () => {
                             }}
                           />
                         </div>
-                        <div className="text-xs text-gray-500 mt-1 text-center">
+                        <div className="text-xs text-warm-textSecondary mt-1 text-center">
                           {(() => {
                             const progress = badgeProgress.find(p => p.badge._id === badge._id);
                             if (progress) {
@@ -352,8 +352,8 @@ const Badges = () => {
 
                     {/* Rewards */}
                     {badge.rewards && badge.rewards.coins > 0 && (
-                      <div className="mt-3 pt-3 border-t border-gray-200">
-                        <div className="text-xs text-gray-500">
+                      <div className="mt-3 pt-3 border-t border-warm-border">
+                        <div className="text-xs text-warm-textSecondary">
                           Reward: {badge.rewards.coins} coins
                         </div>
                       </div>
@@ -377,9 +377,9 @@ const Badges = () => {
             </div>
           ) : (
             <div className="text-center py-12">
-              <FiSearch className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500 text-lg">No badges found</p>
-              <p className="text-gray-400">Try adjusting your filters</p>
+              <FiSearch className="w-12 h-12 text-warm-textSecondary mx-auto mb-4" />
+              <p className="text-warm-textSecondary text-lg">No badges found</p>
+              <p className="text-warm-textSecondary">Try adjusting your filters</p>
             </div>
           )}
         </div>

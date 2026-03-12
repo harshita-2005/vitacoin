@@ -11,10 +11,6 @@ const Leaderboard = () => {
   const [sortBy, setSortBy] = useState('coins');
   const [currentPeriod, setCurrentPeriod] = useState('');
 
-  useEffect(() => {
-    fetchLeaderboardData();
-  }, [activeTab, sortBy]);
-
   const fetchLeaderboardData = useCallback(async () => {
     try {
       setLoading(true);
@@ -54,6 +50,10 @@ const Leaderboard = () => {
       setLoading(false);
     }
   }, [activeTab, sortBy, currentPeriod]);
+
+  useEffect(() => {
+    fetchLeaderboardData();
+  }, [fetchLeaderboardData]);
 
   const getPeriodOptions = () => {
     if (activeTab === 'daily') {
@@ -151,10 +151,10 @@ const Leaderboard = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">
+        <h1 className="text-4xl font-bold text-warm-text mb-2">
           🏆 Leaderboard
         </h1>
-        <p className="text-lg text-gray-600">
+        <p className="text-lg text-warm-textSecondary">
           Compete with other players and climb the rankings
         </p>
       </div>
@@ -177,8 +177,8 @@ const Leaderboard = () => {
               }}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all duration-200 ${
                 activeTab === tab.id
-                  ? 'bg-primary-600 text-white shadow-lg'
-                  : 'bg-white text-gray-600 hover:bg-gray-50 shadow-md'
+                  ? 'bg-warm-primary text-white shadow-lg'
+                  : 'bg-white text-warm-textSecondary hover:bg-warm-container shadow-md border border-warm-border'
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -192,13 +192,13 @@ const Leaderboard = () => {
       {activeTab !== 'overall' && (
         <div className="flex justify-center">
           <div className="bg-white rounded-xl shadow-md p-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-warm-text mb-2">
               Select {activeTab === 'daily' ? 'Date' : activeTab === 'weekly' ? 'Week' : 'Month'}
             </label>
             <select
               value={currentPeriod}
               onChange={(e) => setCurrentPeriod(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="px-3 py-2 border border-warm-border rounded-lg focus:ring-2 focus:ring-warm-primary focus:border-transparent"
             >
               <option value="">Current {activeTab === 'daily' ? 'Day' : activeTab === 'weekly' ? 'Week' : 'Month'}</option>
               {getPeriodOptions().map((option) => (
@@ -215,7 +215,7 @@ const Leaderboard = () => {
       {activeTab === 'overall' && (
         <div className="flex justify-center">
           <div className="bg-white rounded-xl shadow-md p-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
+            <label className="block text-sm font-medium text-warm-text mb-2">Sort By</label>
             <div className="flex gap-2">
               {getSortOptions().map((option) => {
                 const Icon = option.icon;
@@ -225,8 +225,8 @@ const Leaderboard = () => {
                     onClick={() => setSortBy(option.value)}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       sortBy === option.value
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        ? 'bg-warm-primary text-white'
+                        : 'bg-warm-container text-warm-textSecondary hover:bg-warm-secondary'
                     }`}
                   >
                     <Icon className="w-4 h-4" />
@@ -261,21 +261,21 @@ const Leaderboard = () => {
                       {getRankIcon(index + 1)}
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">
+                      <h3 className="text-lg font-semibold text-warm-text">
                         {user.firstName} {user.lastName}
                       </h3>
-                      <p className="text-gray-500">@{user.username}</p>
+                      <p className="text-warm-textSecondary">@{user.username}</p>
                     </div>
                   </div>
                   
                   <div className="text-right">
-                    <div className="text-2xl font-bold text-primary-600">
+                    <div className="text-2xl font-bold text-warm-primary">
                       {sortBy === 'coins' && user.coinBalance}
                       {sortBy === 'experience' && user.experience}
                       {sortBy === 'tasks' && user.totalTasks}
                       {sortBy === 'badges' && user.totalBadges}
                     </div>
-                    <div className="text-sm text-gray-500 capitalize">
+                    <div className="text-sm text-warm-textSecondary capitalize">
                       {sortBy === 'coins' && 'Coins'}
                       {sortBy === 'experience' && 'Experience'}
                       {sortBy === 'tasks' && 'Tasks'}
@@ -308,20 +308,20 @@ const Leaderboard = () => {
                       {getRankIcon(index + 1)}
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">
+                      <h3 className="text-lg font-semibold text-warm-text">
                         {stat.firstName} {stat.lastName}
                       </h3>
-                      <p className="text-gray-500">@{stat.username}</p>
+                      <p className="text-warm-textSecondary">@{stat.username}</p>
                     </div>
                   </div>
                   
                   <div className="text-right">
-                    <div className="text-2xl font-bold text-primary-600">
+                    <div className="text-2xl font-bold text-warm-primary">
                       {sortBy === 'coins' && stat[`${activeTab}Coins`]}
                       {sortBy === 'tasks' && stat[`${activeTab}Tasks`]}
                       {sortBy === 'experience' && stat[`${activeTab}Experience`]}
                     </div>
-                    <div className="text-sm text-gray-500 capitalize">
+                    <div className="text-sm text-warm-textSecondary capitalize">
                       {sortBy === 'coins' && 'Coins'}
                       {sortBy === 'tasks' && 'Tasks'}
                       {sortBy === 'experience' && 'Experience'}
@@ -339,17 +339,17 @@ const Leaderboard = () => {
             <button
               onClick={() => fetchLeaderboardData(leaderboardData.pagination.current - 1)}
               disabled={!leaderboardData.pagination.hasPrev}
-              className="px-4 py-2 bg-white border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              className="px-4 py-2 bg-white border border-warm-border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-warm-container"
             >
               Previous
             </button>
-            <span className="px-4 py-2 text-gray-600">
+            <span className="px-4 py-2 text-warm-text">
               Page {leaderboardData.pagination.current} of {leaderboardData.pagination.total}
             </span>
             <button
               onClick={() => fetchLeaderboardData(leaderboardData.pagination.current + 1)}
               disabled={!leaderboardData.pagination.hasNext}
-              className="px-4 py-2 bg-white border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              className="px-4 py-2 bg-white border border-warm-border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-warm-container"
             >
               Next
             </button>

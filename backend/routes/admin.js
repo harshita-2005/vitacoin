@@ -5,6 +5,7 @@ const Challenge = require('../models/Challenge');
 const Game = require('../models/Game');
 const Transaction = require('../models/Transaction');
 const { protect } = require('../middleware/auth');
+const { addVerbalFromApi, addCodeBreakerFromApi } = require('../services/datasetService');
 
 // Admin middleware - check if user is admin
 const adminAuth = async (req, res, next) => {
@@ -378,7 +379,7 @@ router.put('/settings', async (req, res) => {
 router.get('/system-stats', async (req, res) => {
   try {
     const Task = require('../models/Task');
-    
+
     const [totalUsers, totalTasks, totalChallenges, totalTransactions] = await Promise.all([
       User.countDocuments(),
       Task.countDocuments(),
@@ -396,6 +397,46 @@ router.get('/system-stats', async (req, res) => {
   } catch (error) {
     console.error('Error fetching system stats:', error);
     res.status(500).json({ error: 'Failed to fetch system statistics' });
+  }
+});
+
+// ---------- Dataset (add data from external APIs) ----------
+
+// @desc    Add Verbal IQ words from Datamuse API
+// @route   POST /api/admin/dataset/verbal
+// @access  Private/Admin
+router.post('/dataset/verbal', async (req, res) => {
+  try {
+    const count = Math.min(parseInt(req.body.count, 10) || 10, 20);
+    const { added, total } = await addVerbalFromApi(count);
+    res.json({
+      success: true,
+      added,
+      total,
+      message: added > 0 ? `Added ${added} new word(s) to Verbal IQ dataset. Total: ${total}.` : 'No new words added (dataset may already include seed words).'
+    });
+  } catch (error) {
+    console.error('Admin dataset verbal error:', error);
+    res.status(500).json({ success: false, error: 'Failed to add verbal dataset' });
+  }
+});
+
+// @desc    Add Code Breaker words from Datamuse API
+// @route   POST /api/admin/dataset/codebreaker
+// @access  Private/Admin
+router.post('/dataset/codebreaker', async (req, res) => {
+  try {
+    const count = Math.min(parseInt(req.body.count, 10) || 15, 30);
+    const { added, total } = await addCodeBreakerFromApi(count);
+    res.json({
+      success: true,
+      added,
+      total,
+      message: added > 0 ? `Added ${added} new word(s) to Code Breaker dataset. Total: ${total}.` : 'No new words added.'
+    });
+  } catch (error) {
+    console.error('Admin dataset codebreaker error:', error);
+    res.status(500).json({ success: false, error: 'Failed to add codebreaker dataset' });
   }
 });
 

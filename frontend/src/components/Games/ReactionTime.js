@@ -1,15 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import DifficultyIndicator from './DifficultyIndicator';
 
-const ReactionTime = ({ onComplete, onPause, isPaused, timeLimit, difficulty = 'easy' }) => {
+const ReactionTime = ({ onComplete, onPause, isPaused, timeLimit, difficulty = 'easy', onScoreUpdate }) => {
   const [gameState, setGameState] = useState('waiting'); // waiting, ready, clicked, fake
   const [startTime, setStartTime] = useState(null);
   const [reactionTime, setReactionTime] = useState(null);
   const [round, setRound] = useState(0);
   const [times, setTimes] = useState([]);
-  const [score, setScore] = useState(0);
-
+  const scoreRef = useRef(0);
+ 
   // Difficulty-based configuration
   const getDifficultyConfig = () => {
     switch (difficulty) {
@@ -99,7 +99,8 @@ const ReactionTime = ({ onComplete, onPause, isPaused, timeLimit, difficulty = '
       const time = Date.now() - startTime;
       setReactionTime(time);
       setTimes(prev => [...prev, time]);
-      setScore(prev => prev + Math.max(0, 20 - Math.floor(time / 10)));
+      scoreRef.current += Math.max(0, 20 - Math.floor(time / 10));
+      onScoreUpdate?.(scoreRef.current, scoreRef.current);
       setGameState('clicked');
       
       setTimeout(() => {
@@ -107,7 +108,8 @@ const ReactionTime = ({ onComplete, onPause, isPaused, timeLimit, difficulty = '
       }, 1000);
     } else if (gameState === 'waiting' || gameState === 'fake') {
       // Clicked too early (or on fake flash)
-      setScore(prev => Math.max(0, prev - 10));
+      scoreRef.current = Math.max(0, scoreRef.current - 10);
+      onScoreUpdate?.(scoreRef.current, scoreRef.current);
       setGameState('clicked');
       
       setTimeout(() => {
@@ -120,25 +122,17 @@ const ReactionTime = ({ onComplete, onPause, isPaused, timeLimit, difficulty = '
     <div className={`text-center ${isPaused ? 'opacity-50 pointer-events-none select-none' : ''}`}>
       <DifficultyIndicator difficulty={difficulty} />
 
-      {/* Compact stats row */}
-      <div className="mb-6">
-        <div className="flex justify-center gap-10 mb-3">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-primary-600">{score}</div>
-            <div className="text-xs text-gray-500 uppercase tracking-wide">Score</div>
+      {/* Same pattern as others: only count + timer (last reaction as "time") */}
+      <div className="flex justify-center gap-10 mb-6">
+        <div>
+          <div className="text-2xl font-bold">{round}/{config.totalRounds}</div>
+          <div className="text-xs text-gray-500">ROUNDS</div>
+        </div>
+        <div>
+          <div className="text-2xl font-bold text-orange-600">
+            {reactionTime != null ? `${reactionTime}ms` : '–'}
           </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-gray-700">
-              {round}/{config.totalRounds}
-            </div>
-            <div className="text-xs text-gray-500 uppercase tracking-wide">Rounds</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">
-              {reactionTime ? `${reactionTime}ms` : '-'}
-            </div>
-            <div className="text-xs text-gray-500 uppercase tracking-wide">Last Time</div>
-          </div>
+          <div className="text-xs text-gray-500">TIME</div>
         </div>
       </div>
 
@@ -146,7 +140,7 @@ const ReactionTime = ({ onComplete, onPause, isPaused, timeLimit, difficulty = '
         key={round}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-br from-white via-slate-50 to-indigo-50 rounded-2xl shadow-xl p-8 max-w-md mx-auto border border-white/60"
+        className="bg-white rounded-xl shadow-lg p-8 max-w-md mx-auto"
       >
         <div className="text-center">
           {gameState === 'waiting' && (

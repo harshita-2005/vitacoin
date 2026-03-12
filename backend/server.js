@@ -22,6 +22,9 @@ const adminTaskRoutes = require('./routes/adminTasks');
 const walletRoutes = require('./routes/wallet');
 const gamePlayRoutes = require('./routes/gamePlay');
 const dailyChallengeRoutes = require('./routes/dailyChallenge');
+const datasetRoutes = require('./routes/dataset');
+const puzzleRoutes = require('./routes/puzzles');
+const mcqRoutes = require('./routes/mcqs');
 
 const { authenticateSocket } = require('./middleware/auth');
 const { setupSocketHandlers } = require('./socket/socketHandlers');
@@ -109,6 +112,9 @@ app.use('/api/admin/tasks', adminTaskRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/game', gamePlayRoutes);
 app.use('/api/daily-challenge', dailyChallengeRoutes);
+app.use('/api/dataset', datasetRoutes);
+app.use('/api/puzzles', puzzleRoutes);
+app.use('/api/mcqs', mcqRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

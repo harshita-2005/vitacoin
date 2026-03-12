@@ -198,25 +198,35 @@ class BadgeService {
       const user = await User.findById(userId);
       if (!user) return null;
 
+      const userBadgeIds = Array.isArray(user.badges) ? user.badges : [];
+
       const allBadges = await Badge.find({
         isActive: true,
         isHidden: false
       });
 
       const progress = allBadges.map(badge => {
-        const hasBadge = user.badges.includes(badge._id);
+        const hasBadge = userBadgeIds.some(id => id && id.toString() === badge._id.toString());
+        const req = badge.requirements || {};
         let progress = 0;
         let maxProgress = 1;
 
-        if (badge.requirements.tasksCompleted > 0) {
-          progress = Math.min(user.tasksCompleted || 0, badge.requirements.tasksCompleted);
-          maxProgress = badge.requirements.tasksCompleted;
-        } else if (badge.requirements.coinsRequired > 0) {
-          progress = Math.min(user.coinBalance, badge.requirements.coinsRequired);
-          maxProgress = badge.requirements.coinsRequired;
-        } else if (badge.requirements.loginStreak > 0) {
-          progress = Math.min(user.loginStreak || 0, badge.requirements.loginStreak);
-          maxProgress = badge.requirements.loginStreak;
+        if ((req.tasksCompleted || 0) > 0) {
+          progress = Math.min(user.tasksCompleted || 0, req.tasksCompleted);
+          maxProgress = req.tasksCompleted;
+        } else if ((req.coinsRequired || 0) > 0) {
+          progress = Math.min(Number(user.coinBalance) || 0, req.coinsRequired);
+          maxProgress = req.coinsRequired;
+        } else if ((req.loginStreak || 0) > 0) {
+          progress = Math.min(user.loginStreak || 0, req.loginStreak);
+          maxProgress = req.loginStreak;
+        }
+
+        let canEarn = false;
+        try {
+          canEarn = !hasBadge && typeof badge.canUserEarn === 'function' && badge.canUserEarn(user);
+        } catch (_) {
+          canEarn = !hasBadge;
         }
 
         return {
@@ -224,8 +234,8 @@ class BadgeService {
           hasBadge: hasBadge,
           progress: progress,
           maxProgress: maxProgress,
-          progressPercentage: Math.round((progress / maxProgress) * 100),
-          canEarn: !hasBadge && badge.canUserEarn(user)
+          progressPercentage: maxProgress > 0 ? Math.round((progress / maxProgress) * 100) : 0,
+          canEarn
         };
       });
 
@@ -242,18 +252,24 @@ class BadgeService {
   static async getRecommendedBadges(userId) {
     try {
       const progress = await this.getUserBadgeProgress(userId);
-      if (!progress) return [];
+      if (!progress || !Array.isArray(progress)) return [];
 
       return progress
-        .filter(item => !item.hasBadge && item.canEarn)
-        .sort((a, b) => b.progressPercentage - a.progressPercentage)
+        .filter(item => item && !item.hasBadge && item.canEarn)
+        .sort((a, b) => (b.progressPercentage || 0) - (a.progressPercentage || 0))
         .slice(0, 5)
-        .map(item => ({
-          ...item.badge.toObject(),
-          progress: item.progress,
-          maxProgress: item.maxProgress,
-          progressPercentage: item.progressPercentage
-        }));
+        .map(item => {
+          const badge = item.badge;
+          const badgeObj = badge && typeof badge.toObject === 'function'
+            ? badge.toObject()
+            : (badge && typeof badge === 'object' ? { ...badge } : {});
+          return {
+            ...badgeObj,
+            progress: item.progress,
+            maxProgress: item.maxProgress,
+            progressPercentage: item.progressPercentage
+          };
+        });
     } catch (error) {
       console.error('Error getting recommended badges:', error);
       return [];

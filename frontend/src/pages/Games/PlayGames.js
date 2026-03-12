@@ -7,7 +7,10 @@ import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import GamePlayer from '../../components/Games/GamePlayer';
 import LevelSelector from '../../components/Games/LevelSelector';
-import DailyChallenge from '../../components/Games/DailyChallenge';
+import DailyChallenge, { setDailyChallengeCompleted } from '../../components/Games/DailyChallenge';
+import DailyChallengeSession from '../../components/Games/DailyChallengeSession';
+import { setExtendedWordBank } from '../../utils/verbalEngine';
+import { getDailyChallengeProgress } from '../../utils/dailyChallengeStorage';
 import toast from 'react-hot-toast';
 
 const PlayGames = () => {
@@ -22,11 +25,22 @@ const PlayGames = () => {
   const [selectedDifficulty, setSelectedDifficulty] = useState('easy');
   const [showLevelSelector, setShowLevelSelector] = useState(false);
   const [isDailyChallenge, setIsDailyChallenge] = useState(false);
+  const [showDailyChallengeSession, setShowDailyChallengeSession] = useState(false);
+  const [dailyChallengeRefreshKey, setDailyChallengeRefreshKey] = useState(0);
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchGamesData();
+    const fetchVerbalDataset = async () => {
+      try {
+        const r = await axios.get('/api/dataset/verbal');
+        if (r.data?.words?.length) setExtendedWordBank(r.data.words);
+      } catch (_) {
+        // ignore; use default word bank only
+      }
+    };
+    fetchVerbalDataset();
   }, []);
 
   const fetchGamesData = async () => {
@@ -36,11 +50,13 @@ const PlayGames = () => {
         axios.get('/api/games/active'),
         axios.get('/api/challenges/active')
       ]);
-      
-      setGames(gamesRes.data);
-      setChallenges(challengesRes.data);
+      const gamesList = Array.isArray(gamesRes.data) ? gamesRes.data : (gamesRes.data?.games ?? []);
+      const challengesList = Array.isArray(challengesRes.data) ? challengesRes.data : (challengesRes.data?.challenges ?? []);
+      setGames(gamesList);
+      setChallenges(challengesList);
     } catch (error) {
       console.error('Error fetching games data:', error);
+      // Don't clear games/challenges on error so a failed refresh doesn't wipe the list
     } finally {
       setLoading(false);
     }
@@ -60,13 +76,38 @@ const PlayGames = () => {
   };
 
   const handleDailyChallengeStart = () => {
-    if (!selectedGame) {
-      toast.error('Please select a game first');
-      return;
+    setShowDailyChallengeSession(true);
+  };
+
+  const handleDailyChallengeComplete = async (result) => {
+    try {
+      const response = await axios.post('/api/daily-challenge/complete', {
+        game: 'daily_challenge',
+        score: result?.score ?? 0,
+        time: result?.time ?? 0,
+        accuracy: result?.accuracy ?? 0,
+        correctAnswers: result?.correctAnswers ?? 0
+      });
+      if (response.data.success) {
+        setDailyChallengeCompleted();
+        setDailyChallengeRefreshKey((k) => k + 1);
+        const coins = response.data.coinsAwarded ?? 0;
+        const xp = response.data.xpAwarded ?? 0;
+        toast.success(response.data.message || `Daily challenge completed! +${coins} coins, +${xp} XP`);
+        try {
+          const userResponse = await axios.get('/api/auth/verify');
+          if (userResponse.data.user) updateUser(userResponse.data.user);
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        toast.error(response.data.error || 'Failed to save');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to complete daily challenge');
+    } finally {
+      setShowDailyChallengeSession(false);
     }
-    setIsDailyChallenge(true);
-    setSelectedDifficulty('medium'); // Daily challenge uses medium difficulty
-    setShowGamePlayer(true);
   };
 
   const handleChallengeSelect = (challenge) => {
@@ -205,6 +246,20 @@ const PlayGames = () => {
     );
   }
 
+  if (showDailyChallengeSession) {
+    const progressForResume = getDailyChallengeProgress();
+    return (
+      <DailyChallengeSession
+        onComplete={handleDailyChallengeComplete}
+        onClose={() => {
+          setShowDailyChallengeSession(false);
+          setDailyChallengeRefreshKey((k) => k + 1);
+        }}
+        initialProgress={progressForResume}
+      />
+    );
+  }
+
   if (showLevelSelector && selectedGame) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
@@ -214,15 +269,23 @@ const PlayGames = () => {
           className="bg-white rounded-xl shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto p-6"
         >
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">
-              Select Difficulty - {selectedGame.name}
+            <h2 className="text-2xl font-bold text-warm-text">
+              {selectedGame.slug === 'memory-game' || selectedGame.slug === 'verbal-iq'
+                ? 'Verbal IQ'
+                : selectedGame.slug === 'reaction-time'
+                  ? 'Code Breaker'
+                  : selectedGame.slug === 'puzzle-solver'
+                    ? 'Pattern IQ'
+                    : selectedGame.slug === 'word-scramble'
+                      ? 'Word Shuffle'
+                      : selectedGame.name}
             </h2>
             <button
               onClick={() => {
                 setShowLevelSelector(false);
                 setSelectedGame(null);
               }}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-warm-textSecondary hover:text-warm-text transition-colors"
             >
               ✕
             </button>
@@ -256,8 +319,8 @@ const PlayGames = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-warm-background">
+      <div className="container-fluid py-8">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -265,12 +328,12 @@ const PlayGames = () => {
           className="flex justify-between items-center mb-8"
         >
           <div className="text-center flex-1">
-            <h1 className="text-4xl font-bold text-gray-800 mb-4">
+            <h1 className="text-4xl font-bold text-warm-text mb-4">
               🎮 Play Games & Earn Coins
             </h1>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            <p className="text-lg text-warm-textSecondary max-w-2xl mx-auto">
               Challenge yourself with exciting games and complete challenges to earn coins! 
-              Your current balance: <span className="text-2xl font-bold text-primary-600">{user?.coinBalance || 0} coins</span>
+              Your current balance: <span className="text-2xl font-bold text-warm-primary">{user?.coinBalance || 0} coins</span>
             </p>
           </div>
           <button
@@ -280,7 +343,7 @@ const PlayGames = () => {
                 navigate('/login');
               }
             }}
-            className="btn btn-outline btn-error"
+            className="btn-secondary"
           >
             <FiLogOut className="w-4 h-4 mr-2" />
             Logout
@@ -302,7 +365,7 @@ const PlayGames = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="input w-full pl-10"
               />
-              <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-warm-textSecondary w-5 h-5" />
             </div>
             
             <div className="flex flex-wrap gap-2">
@@ -321,8 +384,8 @@ const PlayGames = () => {
                     onClick={() => setFilter(tab.key)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all duration-200 ${
                       filter === tab.key
-                        ? 'bg-primary-600 text-white shadow-lg'
-                        : 'bg-white text-gray-600 hover:bg-gray-50 shadow-md'
+                        ? 'bg-warm-primary text-white shadow-lg'
+                        : 'bg-white text-warm-textSecondary hover:bg-warm-container shadow-md border border-warm-border'
                     }`}
                   >
                     <Icon className="w-4 h-4" />
@@ -340,11 +403,11 @@ const PlayGames = () => {
           animate={{ opacity: 1, y: 0 }}
           className="mb-12"
         >
-          <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-            <FiAward className="w-6 h-6 text-purple-600" />
+          <h2 className="text-2xl font-bold text-warm-text mb-6 flex items-center gap-2">
+            <FiAward className="w-6 h-6 text-warm-primary" />
             Daily Challenge
           </h2>
-          <DailyChallenge onStart={handleDailyChallengeStart} />
+          <DailyChallenge key={dailyChallengeRefreshKey} onStart={handleDailyChallengeStart} />
         </motion.div>
 
         {/* Active Challenges Section */}
@@ -354,8 +417,8 @@ const PlayGames = () => {
             animate={{ opacity: 1, y: 0 }}
             className="mb-12"
           >
-            <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-              <FiTarget className="w-6 h-6 text-primary-600" />
+            <h2 className="text-2xl font-bold text-warm-text mb-6 flex items-center gap-2">
+              <FiTarget className="w-6 h-6 text-warm-primary" />
               Active Challenges
             </h2>
             
@@ -373,10 +436,10 @@ const PlayGames = () => {
                   <div className="card-body">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
-                        <h3 className="text-xl font-bold text-gray-800 mb-2">
+                        <h3 className="text-xl font-bold text-warm-text mb-2">
                           {challenge.title}
                         </h3>
-                        <p className="text-gray-600 mb-3">
+                        <p className="text-warm-textSecondary mb-3">
                           {challenge.description}
                         </p>
                       </div>
@@ -385,30 +448,30 @@ const PlayGames = () => {
                           {challenge.type}
                         </span>
                         <div className="text-right mt-2">
-                          <div className="text-2xl font-bold text-primary-600">
+                          <div className="text-2xl font-bold text-warm-primary">
                             +{challenge.rewards.coins}
                           </div>
-                          <div className="text-sm text-gray-500">coins</div>
+                          <div className="text-sm text-warm-textSecondary">coins</div>
                         </div>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 mb-4">
                       <div className="text-center">
-                        <div className="text-sm text-gray-500">Min Score</div>
-                        <div className="font-semibold text-gray-800">
+                        <div className="text-sm text-warm-textSecondary">Min Score</div>
+                        <div className="font-semibold text-warm-text">
                           {challenge.requirements.minScore}
                         </div>
                       </div>
                       <div className="text-center">
-                        <div className="text-sm text-gray-500">Time Limit</div>
-                        <div className="font-semibold text-gray-800">
+                        <div className="text-sm text-warm-textSecondary">Time Limit</div>
+                        <div className="font-semibold text-warm-text">
                           {challenge.requirements.timeLimit}s
                         </div>
                       </div>
                     </div>
 
-                    <button className="btn btn-primary w-full">
+                    <button className="btn bg-warm-primary text-white hover:opacity-90 w-full">
                       <FiPlay className="w-4 h-4 mr-2" />
                       Start Challenge
                     </button>
@@ -424,20 +487,36 @@ const PlayGames = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-            <FiPlay className="w-6 h-6 text-primary-600" />
+          <h2 className="text-2xl font-bold text-warm-text mb-6 flex items-center gap-2">
+            <FiPlay className="w-6 h-6 text-warm-primary" />
             Available Games
           </h2>
           
           {getFilteredGames().length === 0 ? (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">🎮</div>
-              <h3 className="text-xl font-semibold text-gray-600 mb-2">No games found</h3>
-              <p className="text-gray-500">Try adjusting your search or filter criteria</p>
+              <h3 className="text-xl font-semibold text-warm-textSecondary mb-2">No games found</h3>
+              <p className="text-warm-textSecondary">Try adjusting your search or filter criteria</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {getFilteredGames().map((game, index) => (
+              {getFilteredGames().map((game, index) => {
+                const isVerbal = game.slug === 'memory-game' || game.slug === 'verbal-iq';
+                const isCodeBreaker = game.slug === 'reaction-time';
+                const isPatternIQ = game.slug === 'puzzle-solver';
+                const isWordShuffle = game.slug === 'word-scramble';
+                const displayName = isVerbal ? 'Verbal IQ' : isCodeBreaker ? 'Code Breaker' : isPatternIQ ? 'Pattern IQ' : isWordShuffle ? 'Word Shuffle' : game.name;
+                const displayDescription = isVerbal
+                  ? 'Test your vocabulary, synonyms, antonyms and grammar skills.'
+                  : isCodeBreaker
+                    ? 'Coding–decoding puzzles: alphabet positions, letter shifts and word transformations.'
+                    : isPatternIQ
+                      ? 'Identify patterns in numbers and letters to find the missing piece.'
+                      : isWordShuffle
+                        ? 'Rearrange letters to discover the hidden word.'
+                        : game.description;
+
+                return (
                 <motion.div
                   key={game._id}
                   initial={{ opacity: 0, y: 20 }}
@@ -472,24 +551,24 @@ const PlayGames = () => {
                   <div className="card-body">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-2xl">{game.icon || '🎮'}</span>
-                      <h3 className="text-lg font-bold text-gray-800">
-                        {game.name}
+                      <h3 className="text-lg font-bold text-warm-text">
+                        {displayName}
                       </h3>
                     </div>
                     
-                    <p className="text-gray-600 text-sm mb-4">
-                      {game.description}
+                    <p className="text-warm-textSecondary text-sm mb-4">
+                      {displayDescription}
                     </p>
                     
                     <div className="flex items-center justify-center">
-                      <button className="btn btn-primary btn-sm">
+                      <button className="btn bg-warm-primary text-white hover:opacity-90 btn-sm">
                         <FiPlay className="w-4 h-4 mr-1" />
                         Play
                       </button>
                     </div>
                   </div>
                 </motion.div>
-              ))}
+              )})}
             </div>
           )}
         </motion.div>
@@ -502,25 +581,25 @@ const PlayGames = () => {
         >
           <div className="card">
             <div className="card-body">
-              <h3 className="text-xl font-bold text-gray-800 mb-4">Your Gaming Stats</h3>
+              <h3 className="text-xl font-bold text-warm-text mb-4">Your Gaming Stats</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-primary-600">{user?.coinBalance || 0}</div>
-                  <div className="text-sm text-gray-500">Current Coins</div>
+                  <div className="text-2xl font-bold text-warm-primary">{user?.coinBalance || 0}</div>
+                  <div className="text-sm text-warm-textSecondary">Current Coins</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-success-600">{user?.totalEarned || 0}</div>
-                  <div className="text-sm text-gray-500">Total Earned</div>
+                  <div className="text-2xl font-bold text-warm-primary">{user?.totalEarned || 0}</div>
+                  <div className="text-sm text-warm-textSecondary">Total Earned</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">{user?.badgeCount || 0}</div>
-                  <div className="text-sm text-gray-500">Badges Earned</div>
+                  <div className="text-2xl font-bold text-warm-primary">{user?.badgeCount || 0}</div>
+                  <div className="text-sm text-warm-textSecondary">Badges Earned</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-600">
+                  <div className="text-2xl font-bold text-warm-primary">
                     {new Date(user?.lastLogin).toLocaleDateString()}
                   </div>
-                  <div className="text-sm text-gray-500">Last Login</div>
+                  <div className="text-sm text-warm-textSecondary">Last Login</div>
                 </div>
               </div>
             </div>

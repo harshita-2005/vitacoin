@@ -114,6 +114,18 @@ router.post('/play', protect, async (req, res) => {
       });
     }
 
+    // Use app display names (must match frontend GamePlayer / PlayGames)
+    const GAME_DISPLAY_NAMES = {
+      'memory-game': 'Verbal IQ',
+      'verbal-iq': 'Verbal IQ',
+      'math-quiz': 'Math Quiz',
+      'word-scramble': 'Word Shuffle',
+      'code-breaker': 'Code Breaker',
+      'puzzle-solver': 'Pattern IQ',
+      'reaction-time': 'Code Breaker'
+    };
+    const gameDisplayName = GAME_DISPLAY_NAMES[gameDoc.slug] || gameDoc.name || gameDoc.slug;
+
     // Process game completion with backend validation
     const result = await GameRewardService.processGameCompletion(
       user,
@@ -122,7 +134,8 @@ router.post('/play', protect, async (req, res) => {
       score,
       time || 0,
       accuracy || 0,
-      correctAnswers || 0
+      correctAnswers || 0,
+      gameDisplayName
     );
 
     if (!result.success) {

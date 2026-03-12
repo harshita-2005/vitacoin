@@ -184,9 +184,11 @@ class GameRewardService {
    * @param {Number} score - Game score
    * @param {Number} time - Time taken
    * @param {Number} accuracy - Accuracy percentage
+   * @param {Number} correctAnswers - Correct answer count
+   * @param {String} [gameDisplayName] - Display name for transaction (e.g. "Verbal IQ", "Math Quiz")
    * @returns {Object} Result with rewards and unlock status
    */
-  static async processGameCompletion(user, gameSlug, difficulty, score, time, accuracy, correctAnswers = 0) {
+  static async processGameCompletion(user, gameSlug, difficulty, score, time, accuracy, correctAnswers = 0, gameDisplayName = null) {
     try {
       // Calculate rewards (with correctAnswers validation)
       const rewards = this.calculateRewards(score, difficulty, time, correctAnswers);
@@ -252,6 +254,32 @@ class GameRewardService {
 
       // Only update coins/XP if rewards were earned
       if (rewards.coins > 0 || rewards.xp > 0) {
+        const gameLabel = gameDisplayName || gameSlug;
+        const description = `Game completion: ${gameLabel} (${difficulty})`;
+        const recentCutoff = new Date(Date.now() - 60000);
+        const duplicate = await Transaction.findOne({
+          user: user._id,
+          description,
+          createdAt: { $gte: recentCutoff }
+        });
+        if (duplicate) {
+          await user.save();
+          const attemptsKey = `${gameSlug}_${difficulty}`;
+          const updatedAttempts = user.dailyAttempts?.get(attemptsKey) || 0;
+          const attemptLimit = DAILY_ATTEMPT_LIMITS[difficulty];
+          const remainingAttempts = attemptLimit === -1 ? -1 : attemptLimit - updatedAttempts;
+          return {
+            success: true,
+            coinsAwarded: 0,
+            xpAwarded: 0,
+            levelUnlocked: false,
+            newLevel: user.userLevel,
+            newBalance: user.coinBalance,
+            remainingAttempts,
+            message: 'Completion already recorded.'
+          };
+        }
+
         // Capture balance BEFORE adding coins
         const balanceBefore = user.coinBalance;
 
@@ -274,7 +302,7 @@ class GameRewardService {
           user: user._id,
           type: 'earn',
           amount: rewards.coins,
-          description: `Game completion: ${gameSlug} (${difficulty})`,
+          description,
           category: 'game_completion',
           balanceBefore: balanceBefore,
           balanceAfter: user.coinBalance,

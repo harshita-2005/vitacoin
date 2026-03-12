@@ -78,7 +78,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-secondary-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-warm-background py-12 px-4 sm:px-6 lg:px-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -91,15 +91,15 @@ const Login = () => {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-            className="mx-auto h-16 w-16 bg-gradient-to-r from-primary-600 to-secondary-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg"
+            className="mx-auto h-16 w-16 bg-warm-primary rounded-2xl flex items-center justify-center mb-6 shadow-lg"
           >
             <span className="text-white font-bold text-2xl">V</span>
           </motion.div>
           
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">
+          <h2 className="text-3xl font-bold text-warm-text mb-2">
             Welcome back
           </h2>
-          <p className="text-gray-600">
+          <p className="text-warm-textSecondary">
             Sign in to your Vitacoin account
           </p>
         </div>
@@ -163,13 +163,13 @@ const Login = () => {
                 />
                 <button
                   type="button"
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 p-1 rounded-lg hover:bg-gray-100 transition-colors"
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 p-1 rounded-lg hover:bg-warm-container transition-colors"
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
-                    <FiEyeOff className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                    <FiEyeOff className="w-5 h-5 text-warm-textSecondary hover:text-warm-text" />
                   ) : (
-                    <FiEye className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                    <FiEye className="w-5 h-5 text-warm-textSecondary hover:text-warm-text" />
                   )}
                 </button>
               </div>
@@ -191,7 +191,7 @@ const Login = () => {
             whileTap={{ scale: 0.98 }}
             type="submit"
             disabled={loading}
-            className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-semibold rounded-xl text-white bg-gradient-to-r from-primary-600 to-secondary-600 hover:from-primary-700 hover:to-secondary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:shadow-xl"
+            className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-semibold rounded-xl text-white bg-warm-primary hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-warm-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:shadow-xl"
           >
             {loading ? (
               <LoadingSpinner size="sm" className="text-white" />
@@ -231,24 +231,24 @@ const Login = () => {
           className="mt-8 space-y-4"
         >
           {/* Demo User Account */}
-          <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
-            <h3 className="text-sm font-semibold text-blue-900 mb-2">Demo Account (Regular User)</h3>
-            <p className="text-xs text-blue-700 mb-2">
+          <div className="p-4 bg-warm-container rounded-xl border border-warm-border shadow-sm">
+            <h3 className="text-sm font-semibold text-warm-text mb-2">Demo Account (Regular User)</h3>
+            <p className="text-xs text-warm-textSecondary mb-2">
               Test the application as a regular user:
             </p>
-            <div className="text-xs text-blue-600 space-y-1">
+            <div className="text-xs text-warm-text space-y-1">
               <p><strong>Email:</strong> demo@vitacoin.com</p>
               <p><strong>Password:</strong> demo123</p>
             </div>
           </div>
 
           {/* Admin Account */}
-          <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200">
-            <h3 className="text-sm font-semibold text-purple-900 mb-2">Admin Account</h3>
-            <p className="text-xs text-purple-700 mb-2">
+          <div className="p-4 bg-warm-container rounded-xl border border-warm-border shadow-sm">
+            <h3 className="text-sm font-semibold text-warm-text mb-2">Admin Account</h3>
+            <p className="text-xs text-warm-textSecondary mb-2">
               Access admin dashboard and management features:
             </p>
-            <div className="text-xs text-purple-600 space-y-1">
+            <div className="text-xs text-warm-text space-y-1">
               <p><strong>Email:</strong> admin@vitacoin.com</p>
               <p><strong>Password:</strong> admin123</p>
             </div>

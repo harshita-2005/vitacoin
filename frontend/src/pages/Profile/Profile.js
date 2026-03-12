@@ -92,8 +92,8 @@ const Profile = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Profile Settings</h1>
-        <p className="text-gray-600">Manage your account information and preferences</p>
+        <h1 className="text-2xl font-bold text-warm-text">Profile Settings</h1>
+        <p className="text-warm-textSecondary">Manage your account information and preferences</p>
       </div>
 
       {/* Profile Overview */}
@@ -104,24 +104,24 @@ const Profile = () => {
       >
         <div className="card-body">
           <div className="flex items-center space-x-6">
-            <div className="w-20 h-20 bg-gradient-to-r from-primary-500 to-secondary-500 rounded-full flex items-center justify-center">
+            <div className="w-20 h-20 bg-warm-primary rounded-full flex items-center justify-center">
               <span className="text-white font-bold text-2xl">
                 {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
               </span>
             </div>
             <div className="flex-1">
-              <h3 className="text-xl font-semibold text-gray-900">
+              <h3 className="text-xl font-semibold text-warm-text">
                 {user?.firstName} {user?.lastName}
               </h3>
-              <p className="text-gray-500">@{user?.username}</p>
-              <p className="text-gray-500">{user?.email}</p>
+              <p className="text-warm-textSecondary">@{user?.username}</p>
+              <p className="text-warm-textSecondary">{user?.email}</p>
               <div className="mt-2">
                 <CoinDisplay balance={user?.coinBalance || 0} size="lg" />
               </div>
             </div>
             <div className="text-right">
-              <div className="text-sm text-gray-500">Member since</div>
-              <div className="font-medium text-gray-900">
+              <div className="text-sm text-warm-textSecondary">Member since</div>
+              <div className="font-medium text-warm-text">
                 {new Date(user?.createdAt).toLocaleDateString()}
               </div>
             </div>
@@ -178,7 +178,7 @@ const Profile = () => {
             >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-warm-text mb-1">
                     First Name
                   </label>
                   <input
@@ -194,7 +194,7 @@ const Profile = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-warm-text mb-1">
                     Last Name
                   </label>
                   <input
@@ -211,7 +211,7 @@ const Profile = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-warm-text mb-1">
                   Profile Picture URL
                 </label>
                 <input
@@ -221,7 +221,7 @@ const Profile = () => {
                   className="input"
                   placeholder="https://example.com/avatar.jpg"
                 />
-                <p className="mt-1 text-sm text-gray-500">
+                <p className="mt-1 text-sm text-warm-textSecondary">
                   Enter a URL to your profile picture
                 </p>
               </div>
@@ -256,7 +256,7 @@ const Profile = () => {
               className="space-y-6"
             >
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-warm-text mb-1">
                   Current Password
                 </label>
                 <input
@@ -272,7 +272,7 @@ const Profile = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-warm-text mb-1">
                   New Password
                 </label>
                 <input
@@ -288,7 +288,7 @@ const Profile = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-warm-text mb-1">
                   Confirm New Password
                 </label>
                 <input
@@ -335,10 +335,10 @@ const Profile = () => {
       >
         <div className="card">
           <div className="card-body text-center">
-            <div className="text-2xl font-bold text-primary-600">
+            <div className="text-2xl font-bold text-warm-primary">
               {user?.badgeCount || 0}
             </div>
-            <div className="text-sm text-gray-500">Badges Earned</div>
+            <div className="text-sm text-warm-textSecondary">Badges Earned</div>
           </div>
         </div>
 
@@ -353,10 +353,10 @@ const Profile = () => {
 
         <div className="card">
           <div className="card-body text-center">
-            <div className="text-2xl font-bold text-secondary-600">
+            <div className="text-2xl font-bold text-warm-primary">
               {user?.role || 'user'}
             </div>
-            <div className="text-sm text-gray-500">Account Type</div>
+            <div className="text-sm text-warm-textSecondary">Account Type</div>
           </div>
         </div>
       </motion.div>

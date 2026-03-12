@@ -32,11 +32,18 @@ router.get('/', protect, async (req, res) => {
       sortOrder
     });
 
-    // Get total count for pagination
-    const totalCount = await Transaction.countDocuments({
-      user: req.user._id,
-      isVisible: true
-    });
+    // Total count with same filters for pagination
+    const countQuery = { user: req.user._id, isVisible: true };
+    if (type === 'earned') countQuery.amount = { $gt: 0 };
+    else if (type === 'spent') countQuery.amount = { $lt: 0 };
+    else if (type) countQuery.type = type;
+    if (category) countQuery.category = category;
+    if (startDate || endDate) {
+      countQuery.createdAt = {};
+      if (startDate) countQuery.createdAt.$gte = new Date(startDate);
+      if (endDate) countQuery.createdAt.$lte = new Date(endDate);
+    }
+    const totalCount = await Transaction.countDocuments(countQuery);
 
     res.json({
       transactions,

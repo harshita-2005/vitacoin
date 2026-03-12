@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FiTrendingUp, FiAward, FiDollarSign, FiActivity, FiPlay, FiMinus, FiLogOut, FiGift } from 'react-icons/fi';
+import { FiTrendingUp, FiAward, FiDollarSign, FiActivity, FiPlay, FiMinus, FiLogOut, FiGift, FiCreditCard, FiShoppingCart, FiRepeat } from 'react-icons/fi';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
@@ -13,12 +13,36 @@ const Dashboard = () => {
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user, logout } = useAuth();
-  const { emit, socket } = useSocket();
+  const { socket } = useSocket();
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  // Refetch when user returns to this tab so Recent Coin Activity stays up to date
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fetchDashboardData();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+
+  // Refetch when balance changes (earned/spent elsewhere) so dashboard and recent transactions update
+  const prevBalanceRef = React.useRef(undefined);
+  useEffect(() => {
+    const balance = user?.coinBalance;
+    if (balance == null) return;
+    if (prevBalanceRef.current === undefined) {
+      prevBalanceRef.current = balance;
+      return;
+    }
+    if (prevBalanceRef.current !== balance) {
+      prevBalanceRef.current = balance;
+      fetchDashboardData();
+    }
+  }, [user?.coinBalance]);
 
   // Listen for real-time updates
   useEffect(() => {
@@ -62,24 +86,6 @@ const Dashboard = () => {
     fetchDashboardData();
   };
 
-  const handleQuickEarn = async () => {
-    try {
-      await emit('update_balance', { amount: 10, type: 'earning', description: 'Quick earn bonus' });
-      fetchDashboardData();
-    } catch (error) {
-      console.error('Error earning coins:', error);
-    }
-  };
-
-  const handleQuickDeduct = async () => {
-    try {
-      await emit('update_balance', { amount: 5, type: 'deduction', description: 'Quick deduction' });
-      fetchDashboardData();
-    } catch (error) {
-      console.error('Error deducting coins:', error);
-    }
-  };
-
   const getTransactionIcon = (type) => {
     switch (type) {
       case 'earn':
@@ -102,11 +108,11 @@ const Dashboard = () => {
         return 'text-green-600';
       case 'deduct':
       case 'penalty':
-        return 'text-red-600';
+        return 'text-red-500';
       case 'transfer':
         return 'text-blue-600';
       default:
-        return 'text-gray-600';
+        return 'text-slate-600';
     }
   };
 
@@ -138,155 +144,153 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="space-y-8">
-      {/* Welcome Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="flex justify-between items-center"
-      >
-        <div className="text-center flex-1">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Welcome back, {user?.firstName}! 👋
-          </h1>
-          <p className="text-lg text-gray-600">
-            Here's what's happening with your Vitacoin account
-          </p>
-        </div>
-        <button
-          onClick={() => {
-            if (window.confirm('Are you sure you want to logout?')) {
-              logout();
-              navigate('/login');
-            }
-          }}
-          className="btn btn-outline btn-error"
+    <div className="relative min-h-full">
+      <div className="space-y-10">
+        {/* Welcome - centered, Vercel-style typography */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="relative flex flex-col items-center justify-center gap-6 py-4 pr-0 sm:pr-32"
         >
-          <FiLogOut className="w-4 h-4 mr-2" />
-          Logout
-        </button>
-      </motion.div>
+          <div className="flex flex-col items-center justify-center text-center w-full max-w-2xl">
+            <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-warm-text mb-2">
+              Welcome back, {user?.firstName}!
+              <span className="ml-2" role="img" aria-label="wave">👋</span>
+            </h1>
+            <p className="text-base text-warm-textSecondary font-normal leading-relaxed">
+              Here&apos;s what&apos;s happening with your Vitacoin account
+            </p>
+            <span className="inline-block mt-3 h-0.5 w-12 rounded-full bg-indigo-500" aria-hidden />
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm('Are you sure you want to logout?')) {
+                logout();
+                navigate('/login');
+              }
+            }}
+            className="btn-secondary shrink-0 self-end sm:absolute sm:right-0 sm:top-0"
+          >
+            <FiLogOut className="w-4 h-4 mr-2" />
+            Logout
+          </button>
+        </motion.div>
 
-      {/* Stats Cards */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="grid-auto-fit"
-      >
-        <div className="stats-card">
-          <div className="stats-icon">
-            <FiDollarSign className="w-6 h-6" />
+        {/* Stats Cards - white cards, colored icon circles */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5"
+        >
+          {/* Current Balance — stored value / balance */}
+          <div className="stats-card">
+            <div className="stats-icon !bg-amber-50 !text-amber-600">
+              <FiCreditCard className="w-6 h-6" />
+            </div>
+            <div className="stats-value">
+              <CoinDisplay balance={user?.coinBalance || 0} size="sm" />
+            </div>
+            <div className="stats-label">Current Balance</div>
           </div>
-          <div className="stats-value">
-            <CoinDisplay balance={user?.coinBalance || 0} size="sm" />
-          </div>
-          <div className="stats-label">Current Balance</div>
-        </div>
 
-        <div className="stats-card">
-          <div className="stats-icon bg-green-100">
-            <FiTrendingUp className="w-6 h-6 text-green-600" />
+          {/* Total Earned — growth / increase */}
+          <div className="stats-card">
+            <div className="stats-icon !bg-green-50 !text-green-600">
+              <FiTrendingUp className="w-6 h-6" />
+            </div>
+            <div className="stats-value">
+              <CoinDisplay balance={stats?.totalEarned || 0} size="sm" />
+            </div>
+            <div className="stats-label">Total Earned</div>
           </div>
-          <div className="stats-value">
-            <CoinDisplay balance={stats?.totalEarned || 0} size="sm" />
-          </div>
-          <div className="stats-label">Total Earned</div>
-        </div>
 
-        <div className="stats-card">
-          <div className="stats-icon bg-red-100">
-            <FiMinus className="w-6 h-6 text-red-600" />
+          {/* Total Spent — spending / purchases */}
+          <div className="stats-card">
+            <div className="stats-icon !bg-red-50 !text-red-600">
+              <FiShoppingCart className="w-6 h-6" />
+            </div>
+            <div className="stats-value">
+              <CoinDisplay balance={Math.abs(stats?.totalDeducted || 0)} size="sm" />
+            </div>
+            <div className="stats-label">Total Spent</div>
           </div>
-          <div className="stats-value">
-            <CoinDisplay balance={Math.abs(stats?.totalDeducted || 0)} size="sm" />
-          </div>
-          <div className="stats-label">Total Spent</div>
-        </div>
 
-        <div className="stats-card">
-          <div className="stats-icon">
-            <FiAward className="w-6 h-6" />
+          {/* Badges Earned — achievement */}
+          <div className="stats-card">
+            <div className="stats-icon !bg-purple-50 !text-purple-600">
+              <FiAward className="w-6 h-6" />
+            </div>
+            <div className="stats-value">{user?.badgeCount || 0}</div>
+            <div className="stats-label">Badges Earned</div>
           </div>
-          <div className="stats-value">{user?.badgeCount || 0}</div>
-          <div className="stats-label">Badges Earned</div>
-        </div>
 
-        <div className="stats-card">
-          <div className="stats-icon">
-            <FiActivity className="w-6 h-6" />
+          {/* Total Transactions — activity cycles / operations */}
+          <div className="stats-card">
+            <div className="stats-icon !bg-blue-50 !text-blue-600">
+              <FiRepeat className="w-6 h-6" />
+            </div>
+            <div className="stats-value">{stats?.totalTransactions || 0}</div>
+            <div className="stats-label">Total Transactions</div>
           </div>
-          <div className="stats-value">{stats?.totalTransactions || 0}</div>
-          <div className="stats-label">Total Transactions</div>
-        </div>
-      </motion.div>
+        </motion.div>
 
-      {/* Quick Actions - Only for regular users */}
+      {/* Earn Coins - lighter container #F4EFEA; Primary (indigo) / Secondary (warm) / Accent (coffee) */}
       {user?.role !== 'admin' && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="card"
+          className="rounded-xl border shadow-sm transition-all duration-200 hover:shadow-md bg-warm-container border-warm-border"
         >
-          <div className="card-header">
-            <h2 className="text-xl font-bold text-gray-900">Earn Coins</h2>
-            <p className="text-gray-600">Complete challenges and play games to earn coins</p>
+          <div className="px-6 py-5 border-b border-warm-border bg-white/60">
+            <h2 className="text-lg font-semibold text-warm-text">Earn Coins</h2>
+            <p className="text-warm-textSecondary text-sm mt-0.5">Complete rounds and play games to earn coins</p>
           </div>
-          <div className="card-body">
-            <div className="flex flex-col sm:flex-row gap-4">
+          <div className="px-6 py-5">
+            <div className="flex flex-col sm:flex-row gap-3">
               <Link to="/play-games" className="flex-1">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="btn-success w-full"
-                >
-                  <FiPlay className="w-5 h-5 mr-2" />
+                <button type="button" className="w-full inline-flex items-center justify-center px-6 py-3 text-sm font-medium rounded-lg text-white transition-all duration-200 hover:opacity-90" style={{ backgroundColor: '#7B5E4A' }}>
+                  <FiPlay className="w-5 h-5 mr-2 text-white" />
                   Play Games
-                </motion.button>
+                </button>
               </Link>
               <Link to="/challenges" className="flex-1">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="btn-primary w-full"
-                >
-                  <FiAward className="w-5 h-5 mr-2" />
-                  View Challenges
-                </motion.button>
+                <button type="button" className="w-full inline-flex items-center justify-center px-6 py-3 text-sm font-medium rounded-lg bg-white border border-warm-border text-warm-text hover:bg-warm-secondary hover:border-warm-primary/30 transition-all duration-200">
+                  <FiAward className="w-5 h-5 mr-2 text-warm-primary" />
+                  Interview Arena
+                </button>
               </Link>
               <Link to="/coupons" className="flex-1">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="btn-warning w-full"
-                >
-                  <FiGift className="w-5 h-5 mr-2" />
+                <button type="button" className="w-full inline-flex items-center justify-center px-6 py-3 text-sm font-medium rounded-lg bg-warm-primary text-white hover:bg-warm-primary/90 transition-all duration-200">
+                  <FiGift className="w-5 h-5 mr-2 text-white" />
                   Spend Vitacoins
-                </motion.button>
+                </button>
               </Link>
             </div>
           </div>
         </motion.div>
       )}
 
-      {/* Transaction Summary */}
+      {/* Transaction Summary - same warm bar as Earn Coins (#F4EFEA) */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
-        className="card"
+        className="rounded-xl border shadow-sm transition-all duration-200 hover:shadow-md bg-warm-container border-warm-border"
       >
-        <div className="card-header">
+        <div className="px-6 py-5 border-b border-warm-border bg-white/60">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Transaction Summary</h2>
-              <p className="text-gray-600">Your earning and spending overview</p>
+              <h2 className="text-lg font-semibold text-warm-text">Transaction Summary</h2>
+              <p className="text-sm text-warm-textSecondary mt-0.5">Your earning and spending overview</p>
             </div>
             <button
+              type="button"
               onClick={refreshDashboard}
-              className="btn-outline btn-sm"
+              className="btn-secondary px-3 py-2"
               title="Refresh data"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -295,76 +299,83 @@ const Dashboard = () => {
             </button>
           </div>
         </div>
-        <div className="card-body">
+        <div className="px-6 py-5">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+            {/* Total Earned — growth */}
+            <div className="bg-white/70 rounded-lg p-4 border border-warm-border">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-green-600">Total Earned</p>
-                  <p className="text-2xl font-bold text-green-700">
+                  <p className="text-sm font-medium text-warm-textSecondary">Total Earned</p>
+                  <p className="text-2xl font-semibold text-green-600">
                     <CoinDisplay balance={stats?.totalEarned || 0} size="lg" />
                   </p>
                 </div>
-                <FiTrendingUp className="w-8 h-8 text-green-500" />
+                <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                  <FiTrendingUp className="w-5 h-5 text-green-600" />
+                </div>
               </div>
             </div>
-            
-            <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+            {/* Total Spent — purchases */}
+            <div className="bg-white/70 rounded-lg p-4 border border-warm-border">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-red-600">Total Spent</p>
-                  <p className="text-2xl font-bold text-red-700">
+                  <p className="text-sm font-medium text-warm-textSecondary">Total Spent</p>
+                  <p className="text-2xl font-semibold text-red-600">
                     <CoinDisplay balance={Math.abs(stats?.totalDeducted || 0)} size="lg" />
                   </p>
                 </div>
-                <FiMinus className="w-8 h-8 text-red-500" />
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                  <FiShoppingCart className="w-5 h-5 text-red-600" />
+                </div>
               </div>
             </div>
-            
-            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+            {/* Net Balance — stored balance */}
+            <div className="bg-white/70 rounded-lg p-4 border border-warm-border">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-blue-600">Net Balance</p>
-                  <p className="text-2xl font-bold text-blue-700">
+                  <p className="text-sm font-medium text-warm-textSecondary">Net Balance</p>
+                  <p className="text-2xl font-semibold text-amber-600">
                     <CoinDisplay balance={user?.coinBalance || 0} size="lg" />
                   </p>
                 </div>
-                <FiDollarSign className="w-8 h-8 text-blue-500" />
+                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                  <FiCreditCard className="w-5 h-5 text-amber-600" />
+                </div>
               </div>
             </div>
           </div>
         </div>
       </motion.div>
 
-      {/* Recent Transactions */}
+      {/* Recent Coin Activity - same warm bar as Earn Coins, title in black */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5 }}
-        className="card"
+        className="rounded-xl border shadow-sm transition-all duration-200 hover:shadow-md bg-warm-container border-warm-border"
       >
-        <div className="card-header">
-          <h2 className="text-xl font-bold text-gray-900">Recent Transactions</h2>
-          <p className="text-gray-600">Your latest activity</p>
+        <div className="px-6 py-5 border-b border-warm-border bg-white/60">
+          <h2 className="text-lg font-semibold text-warm-text">Recent Coin Activity</h2>
+          <p className="text-warm-textSecondary text-sm mt-0.5">Your latest activity</p>
         </div>
-        <div className="card-body p-0">
+        <div className="p-0">
           {recentTransactions.length > 0 ? (
-            <div className="divide-y divide-gray-100">
+            <div className="divide-y divide-warm-border">
               {recentTransactions.map((transaction, index) => (
                 <motion.div
                   key={transaction._id}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.1 * index }}
-                  className="flex items-center justify-between p-6 hover:bg-gray-50 transition-colors"
+                  className="flex items-center justify-between p-6 hover:bg-warm-container transition-colors duration-200"
                 >
                   <div className="flex items-center space-x-4">
-                    <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
+                    <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center border border-slate-200">
                       {getTransactionIcon(transaction.type)}
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-900">{transaction.description}</p>
-                      <p className="text-sm text-gray-500">
+                      <p className="font-semibold text-warm-text">{transaction.description}</p>
+                      <p className="text-sm text-warm-textSecondary">
                         {new Date(transaction.createdAt).toLocaleDateString()} • {transaction.category.replace('_', ' ')}
                       </p>
                     </div>
@@ -373,10 +384,10 @@ const Dashboard = () => {
                     <p className={`font-bold text-lg ${getTransactionColor(transaction.type)}`}>
                       {formatTransactionAmount(transaction)} coins
                     </p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-warm-textSecondary">
                       Balance: <CoinDisplay balance={transaction.balanceAfter} size="xs" />
                     </p>
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-warm-textSecondary/80">
                       {new Date(transaction.createdAt).toLocaleTimeString([], { 
                         hour: '2-digit', 
                         minute: '2-digit' 
@@ -388,15 +399,15 @@ const Dashboard = () => {
             </div>
           ) : (
             <div className="p-8 text-center">
-              <FiActivity className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">No transactions yet</p>
-              <p className="text-sm text-gray-400">Complete challenges, play games, or redeem coupons to see your activity here</p>
-              <div className="mt-4 flex justify-center space-x-4">
-                <Link to="/challenges" className="btn-primary btn-sm">
+              <FiActivity className="w-12 h-12 text-warm-textSecondary mx-auto mb-4" />
+              <p className="text-warm-textSecondary">No transactions yet</p>
+              <p className="text-sm text-warm-textSecondary/80">Complete rounds, play games, or redeem coupons to see your activity here</p>
+              <div className="mt-4 flex justify-center gap-3">
+                <Link to="/challenges" className="btn-primary">
                   <FiAward className="w-4 h-4 mr-2" />
-                  View Challenges
+                  Interview Arena
                 </Link>
-                <Link to="/play-games" className="btn-success btn-sm">
+                <Link to="/play-games" className="btn-secondary">
                   <FiPlay className="w-4 h-4 mr-2" />
                   Play Games
                 </Link>
@@ -404,71 +415,70 @@ const Dashboard = () => {
             </div>
           )}
         </div>
-        <div className="card-footer">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="btn-outline w-full"
+        <div className="px-6 py-4 border-t border-warm-border bg-white/60">
+          <button
+            type="button"
+            className="btn-secondary w-full"
             onClick={() => window.location.href = '/transactions'}
           >
             View All Transactions
-          </motion.button>
+          </button>
         </div>
       </motion.div>
 
-      {/* Achievement Progress */}
+      {/* Achievement Progress - same warm bar as Earn Coins (#F4EFEA) */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6 }}
-        className="card"
+        className="rounded-xl border shadow-sm transition-all duration-200 hover:shadow-md bg-warm-container border-warm-border"
       >
-        <div className="card-header">
-          <h2 className="text-xl font-bold text-gray-900">Achievement Progress</h2>
-          <p className="text-gray-600">Track your badge progress</p>
+        <div className="px-6 py-5 border-b border-warm-border bg-white/60">
+          <h2 className="text-lg font-semibold text-warm-text">Achievement Progress</h2>
+          <p className="text-warm-textSecondary text-sm mt-0.5">Track your badge progress</p>
         </div>
-        <div className="card-body">
+        <div className="px-6 py-5">
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between p-4 bg-white/70 rounded-lg border border-warm-border">
               <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center">
-                  <FiAward className="w-4 h-4 text-primary-600" />
+                <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
+                  <FiAward className="w-4 h-4 text-indigo-600" />
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-900">First Steps</p>
-                  <p className="text-sm text-gray-500">Earn your first 100 coins</p>
+                  <p className="font-semibold text-warm-text">First Steps</p>
+                  <p className="text-sm text-warm-textSecondary">Earn your first 100 coins</p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-sm font-semibold text-gray-900">
+                <p className="text-sm font-semibold text-warm-text">
                   {Math.min(user?.coinBalance || 0, 100)} / 100
                 </p>
-                <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div className="w-20 h-2 bg-warm-secondary rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full transition-all duration-300"
+                    className="h-full bg-indigo-500 rounded-full transition-all duration-300"
                     style={{ width: `${Math.min((user?.coinBalance || 0) / 100 * 100, 100)}%` }}
                   />
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between p-4 bg-white/70 rounded-lg border border-warm-border">
               <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-success-100 rounded-lg flex items-center justify-center">
-                  <FiTrendingUp className="w-4 h-4 text-success-600" />
+                <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
+                  <FiTrendingUp className="w-4 h-4 text-indigo-600" />
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-900">Active Trader</p>
-                  <p className="text-sm text-gray-500">Complete 10 transactions</p>
+                  <p className="font-semibold text-warm-text">Active Trader</p>
+                  <p className="text-sm text-warm-textSecondary">Complete 10 transactions</p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-sm font-semibold text-gray-900">
+                <p className="text-sm font-semibold text-warm-text">
                   {Math.min(stats?.totalTransactions || 0, 10)} / 10
                 </p>
-                <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div className="w-20 h-2 bg-warm-secondary rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-gradient-to-r from-success-500 to-success-600 rounded-full transition-all duration-300"
+                    className="h-full bg-indigo-500 rounded-full transition-all duration-300"
                     style={{ width: `${Math.min((stats?.totalTransactions || 0) / 10 * 100, 100)}%` }}
                   />
                 </div>
@@ -476,17 +486,17 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
-        <div className="card-footer">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="btn-outline w-full"
+        <div className="px-6 py-4 border-t border-warm-border bg-white/60">
+          <button
+            type="button"
+            className="btn-secondary w-full"
             onClick={() => window.location.href = '/badges'}
           >
             View All Badges
-          </motion.button>
+          </button>
         </div>
       </motion.div>
+      </div>
     </div>
   );
 }

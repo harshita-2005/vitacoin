@@ -1,33 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  FiHome, 
-  FiDollarSign, 
-  FiAward, 
-  FiTrendingUp, 
-  FiUser, 
-  FiSettings, 
+import {
+  FiDollarSign,
+  FiAward,
+  FiTrendingUp,
+  FiHome,
+  FiUser,
+  FiSettings,
   FiLogOut,
   FiMenu,
   FiX,
-  FiWifi,
-  FiWifiOff,
+  FiChevronLeft,
+  FiChevronRight,
   FiPlay,
   FiTarget,
   FiUsers,
   FiGift,
-  FiArrowLeft
+  FiArrowLeft,
+  FiBarChart2,
+  FiTag
 } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
 import CoinDisplay from '../UI/CoinDisplay';
 import NotificationDropdown from '../UI/NotificationDropdown';
 
+const SIDEBAR_COLLAPSED_KEY = 'vitacoin_sidebar_collapsed';
+
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
   const { user, logout } = useAuth();
-  const { isConnected } = useSocket();
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(sidebarCollapsed));
+    } catch (_) {}
+  }, [sidebarCollapsed]);
+  useSocket(); // keep connection active
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -38,14 +55,14 @@ const Layout = ({ children }) => {
     { name: 'Users', href: '/admin/users', icon: FiUsers },
     { name: 'Settings', href: '/admin/settings', icon: FiSettings },
   ] : [
-    { name: 'Dashboard', href: '/dashboard', icon: FiTrendingUp },
+    { name: 'Dashboard', href: '/dashboard', icon: FiHome },
     { name: 'Play Games', href: '/play-games', icon: FiPlay },
-    { name: 'Challenges', href: '/challenges', icon: FiTarget },
-    { name: 'Coupons', href: '/coupons', icon: FiGift },
+    { name: 'Interview Arena', href: '/challenges', icon: FiTarget },
+    { name: 'Coupons', href: '/coupons', icon: FiTag },
     { name: 'My Coupons', href: '/my-coupons', icon: FiAward },
-    { name: 'Transactions', href: '/transactions', icon: FiDollarSign },
+    { name: 'Coin Activity', href: '/transactions', icon: FiDollarSign },
     { name: 'Badges', href: '/badges', icon: FiAward },
-    { name: 'Leaderboard', href: '/leaderboard', icon: FiTrendingUp },
+    { name: 'Leaderboard', href: '/leaderboard', icon: FiBarChart2 },
     { name: 'Profile', href: '/profile', icon: FiUser },
   ];
 
@@ -57,7 +74,7 @@ const Layout = ({ children }) => {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+    <div className="flex h-screen bg-warm-background">
       {/* Mobile sidebar overlay */}
       <AnimatePresence>
         {sidebarOpen && (
@@ -71,164 +88,103 @@ const Layout = ({ children }) => {
         )}
       </AnimatePresence>
 
-      {/* Sidebar */}
+      {/* Sidebar - collapsible on desktop only; full width on mobile when open */}
       <motion.aside
         initial={false}
-        animate={sidebarOpen ? { x: 0 } : { x: 0 }}
-        className={`sidebar fixed top-0 left-0 h-full w-64 bg-white shadow-lg z-40 lg:static lg:translate-x-0 lg:flex lg:flex-col ${sidebarOpen ? '' : 'hidden lg:flex'}`}
+        className={`sidebar fixed top-0 left-0 h-full w-64 z-40 lg:static lg:flex lg:flex-col shrink-0 overflow-hidden transition-[width] duration-200 ease-out ${sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'} ${sidebarOpen ? '' : 'hidden lg:flex'}`}
       >
-        <div className="flex flex-col h-full">
-          {/* Top Quick Navigation */}
-          <div className="flex items-center space-x-2 p-4 border-b border-gray-100">
-            {/* Go Back Arrow */}
-            <button
-              onClick={() => navigate(-1)}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              title="Go Back"
-            >
-              <FiArrowLeft className="w-5 h-5 text-gray-600" />
-            </button>
-            {/* Home Button */}
-            <button
-              onClick={() => navigate(user?.role === 'admin' ? '/admin' : '/dashboard')}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              title="Home"
-            >
-              <FiHome className="w-5 h-5 text-gray-600" />
-            </button>
-          </div>
-          {/* Logo */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-100">
-            <Link to="/dashboard" className="flex items-center space-x-3">
+        <div className="flex flex-col h-full w-full min-w-0 overflow-hidden">
+          {/* Logo row: when collapsed stack logo + chevron for narrow width */}
+          <div className={`border-b border-warm-border ${sidebarCollapsed ? 'flex flex-col items-center py-3 gap-2' : 'flex items-center justify-between gap-2 p-4'}`}>
+            <Link to={user?.role === 'admin' ? '/admin' : '/dashboard'} className={`flex items-center min-w-0 ${sidebarCollapsed ? 'justify-center' : 'flex-1 space-x-3'}`} onClick={() => setSidebarOpen(false)}>
               <motion.div
-                whileHover={{ scale: 1.05 }}
-                className="w-10 h-10 bg-gradient-to-br from-primary-600 to-secondary-600 rounded-xl flex items-center justify-center shadow-lg"
+                whileHover={{ scale: 1.02 }}
+                className="w-10 h-10 bg-warm-primary rounded-xl flex items-center justify-center shrink-0"
               >
                 <span className="text-white font-bold text-lg">V</span>
               </motion.div>
-              <div>
-                <h1 className="text-xl font-bold gradient-text">Vitacoin</h1>
-                <p className="text-xs text-gray-500">Rewards Dashboard</p>
-              </div>
+              {!sidebarCollapsed && (
+                <div className="min-w-0">
+                  <h1 className="text-lg font-bold gradient-text">Vitacoin</h1>
+                  <p className="text-xs text-warm-textSecondary">Rewards Dashboard</p>
+                </div>
+              )}
             </Link>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <FiX className="w-5 h-5 text-gray-600" />
-            </button>
+            <div className={`flex items-center shrink-0 gap-1 ${sidebarCollapsed ? 'flex-col' : ''}`}>
+              {/* Collapse/expand - at top, desktop only */}
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed((c) => !c)}
+                className="hidden lg:flex p-2 rounded-lg hover:bg-warm-container text-warm-textSecondary hover:text-warm-text transition-colors"
+                title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              >
+                {sidebarCollapsed ? <FiChevronRight className="w-5 h-5" /> : <FiChevronLeft className="w-5 h-5" />}
+              </button>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="lg:hidden p-2 rounded-lg hover:bg-warm-container transition-colors"
+                aria-label="Close menu"
+              >
+                <FiX className="w-5 h-5 text-warm-textSecondary" />
+              </button>
+            </div>
           </div>
 
-          {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-2">
+          {/* Navigation - collapsed: icons in circles with tooltip */}
+          <nav className={`flex-1 py-4 space-y-1 ${sidebarCollapsed ? 'px-2 flex flex-col items-center' : 'px-4'}`}>
             {navigation.map((item) => {
               const Icon = item.icon;
+              const active = isActive(item.href);
               return (
                 <motion.div
                   key={item.name}
-                  whileHover={{ x: 4 }}
-                  whileTap={{ scale: 0.95 }}
+                  whileHover={{ x: sidebarCollapsed ? 0 : 4, scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full"
                 >
                   <Link
                     to={item.href}
-                    className={`nav-link ${isActive(item.href) ? 'nav-link-active' : ''}`}
+                    title={item.name}
+                    className={`flex items-center ${sidebarCollapsed ? 'justify-center w-full py-2' : 'nav-link'} ${!sidebarCollapsed && active ? 'nav-link-active' : ''}`}
                     onClick={() => setSidebarOpen(false)}
                   >
-                    <Icon className="w-5 h-5 mr-3" />
-                    {item.name}
+                    {sidebarCollapsed ? (
+                      <span className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors ${active ? 'bg-warm-container text-warm-primary' : 'bg-warm-container text-warm-textSecondary hover:bg-warm-secondary hover:text-warm-primary'}`}>
+                        <Icon className="w-5 h-5 shrink-0" />
+                      </span>
+                    ) : (
+                      <>
+                        <Icon className="w-5 h-5 shrink-0" />
+                        <span className="ml-3 truncate">{item.name}</span>
+                      </>
+                    )}
                   </Link>
                 </motion.div>
               );
             })}
           </nav>
 
-          {/* Quick Actions - Only for regular users */}
-          {user?.role !== 'admin' && (
-            <div className="px-4 py-4 border-t border-gray-100">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                Quick Actions
-              </h3>
-              <div className="space-y-2">
-                <motion.div
-                  whileHover={{ x: 4 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Link
-                    to="/play-games"
-                    className="flex items-center px-3 py-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all duration-200"
-                    onClick={() => setSidebarOpen(false)}
-                  >
-                    <FiPlay className="w-4 h-4 mr-3" />
-                    Quick Game
-                  </Link>
-                </motion.div>
-                <motion.div
-                  whileHover={{ x: 4 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Link
-                    to="/coupons"
-                    className="flex items-center px-3 py-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all duration-200"
-                    onClick={() => setSidebarOpen(false)}
-                  >
-                    <FiGift className="w-4 h-4 mr-3" />
-                    Spend Coins
-                  </Link>
-                </motion.div>
+          {/* Quick Actions - only when expanded */}
+          {user?.role !== 'admin' && !sidebarCollapsed && (
+            <div className="px-4 py-3 border-t border-warm-border">
+              <h3 className="text-xs font-semibold text-warm-textSecondary uppercase tracking-wider mb-2">Quick Actions</h3>
+              <div className="space-y-1">
+                <Link to="/play-games" className="flex items-center px-3 py-2 text-sm text-warm-text hover:text-warm-primary hover:bg-warm-container rounded-lg transition-colors" onClick={() => setSidebarOpen(false)}>
+                  <FiPlay className="w-4 h-4 mr-3" /> Quick Game
+                </Link>
+                <Link to="/coupons" className="flex items-center px-3 py-2 text-sm text-warm-text hover:text-warm-primary hover:bg-warm-container rounded-lg transition-colors" onClick={() => setSidebarOpen(false)}>
+                  <FiGift className="w-4 h-4 mr-3" /> Spend Coins
+                </Link>
               </div>
             </div>
           )}
-
-          {/* User Info */}
-          <div className="p-4 border-t border-gray-100 bg-gray-50">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary-100 to-primary-200 rounded-xl flex items-center justify-center">
-                <span className="text-primary-700 font-semibold">
-                  {user?.firstName?.charAt(0) || 'U'}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate">
-                  {user?.firstName} {user?.lastName}
-                </p>
-                <p className="text-xs text-gray-500 truncate">
-                  @{user?.username}
-                </p>
-              </div>
-            </div>
-
-            {/* Connection Status */}
-            <div className="flex items-center justify-between mb-4 p-2 bg-white rounded-lg border border-gray-200">
-              <div className="flex items-center space-x-2">
-                {isConnected ? (
-                  <FiWifi className="w-4 h-4 text-success-600" />
-                ) : (
-                  <FiWifiOff className="w-4 h-4 text-danger-600" />
-                )}
-                <span className="text-xs font-medium">
-                  {isConnected ? 'Connected' : 'Disconnected'}
-                </span>
-              </div>
-              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-success-500' : 'bg-danger-500'}`} />
-            </div>
-
-            {/* Logout Button */}
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleLogout}
-              className="w-full btn-ghost text-left"
-            >
-              <FiLogOut className="w-5 h-5 mr-3" />
-              Sign Out
-            </motion.button>
-          </div>
         </div>
       </motion.aside>
 
       {/* Main Content */}
       <div className="main-content flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
+        {/* Header with accent */}
         <header className="header">
           <div className="flex items-center justify-between px-6 py-4">
             {/* Mobile menu button */}
@@ -236,32 +192,14 @@ const Layout = ({ children }) => {
               onClick={() => setSidebarOpen(true)}
               className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
             >
-              <FiMenu className="w-6 h-6 text-gray-600" />
+              <FiMenu className="w-6 h-6 text-warm-textSecondary" />
             </button>
 
-            {/* Page Title and Search */}
-            <div className="flex-1 lg:flex-none flex items-center space-x-4">
-              <h1 className="text-2xl font-bold text-gray-900">
+            {/* Page Title - no duplicate search; pages like Play Games have their own search */}
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl font-semibold text-warm-text truncate">
                 {navigation.find(item => isActive(item.href))?.name || 'Dashboard'}
               </h1>
-              
-              {/* Search Bar - Only for regular users */}
-              {user?.role !== 'admin' && (
-                <div className="hidden md:flex items-center">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Search features..."
-                      className="w-64 pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    />
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Right side actions */}
@@ -272,7 +210,7 @@ const Layout = ({ children }) => {
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.2 }}
               >
-                <CoinDisplay balance={user?.coinBalance || 0} size="lg" />
+                <CoinDisplay balance={user?.coinBalance || 0} size="lg" premium />
               </motion.div>
 
               {/* Notifications */}
@@ -297,12 +235,12 @@ const Layout = ({ children }) => {
                 className="relative group"
               >
                 <button className="flex items-center space-x-2 p-2 rounded-xl hover:bg-gray-100 transition-colors">
-                  <div className="w-8 h-8 bg-gradient-to-br from-primary-100 to-primary-200 rounded-lg flex items-center justify-center">
-                    <span className="text-primary-700 font-semibold text-sm">
+                  <div className="w-8 h-8 bg-warm-container rounded-lg flex items-center justify-center">
+                    <span className="text-warm-primary font-semibold text-sm">
                       {user?.firstName?.charAt(0) || 'U'}
                     </span>
                   </div>
-                  <span className="hidden md:block text-sm font-medium text-gray-700">
+                  <span className="hidden md:block text-sm font-medium text-warm-text">
                     {user?.firstName}
                   </span>
                   <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -315,14 +253,14 @@ const Layout = ({ children }) => {
                   <div className="py-2">
                     <Link
                       to="/profile"
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      className="flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
                     >
                       <FiUser className="w-4 h-4 mr-3" />
                       Profile
                     </Link>
                     <Link
                       to="/settings"
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      className="flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
                     >
                       <FiSettings className="w-4 h-4 mr-3" />
                       Settings
@@ -341,102 +279,33 @@ const Layout = ({ children }) => {
             </div>
           </div>
 
-          {/* Top Navigation Menu - Only for regular users */}
-          {user?.role !== 'admin' && (
-            <div className="border-t border-gray-100 px-6 py-3">
-              <div className="flex items-center justify-center space-x-6">
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
-                >
-                  <Link
-                    to="/play-games"
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
-                      isActive('/play-games')
-                        ? 'bg-primary-100 text-primary-700 font-medium'
-                        : 'text-gray-600 hover:text-primary-600 hover:bg-primary-50'
-                    }`}
-                  >
-                    <FiPlay className="w-4 h-4" />
-                    <span className="text-sm font-medium">Play Games</span>
-                  </Link>
-                </motion.div>
-
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                >
-                  <Link
-                    to="/challenges"
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
-                      isActive('/challenges')
-                        ? 'bg-primary-100 text-primary-700 font-medium'
-                        : 'text-gray-600 hover:text-primary-600 hover:bg-primary-50'
-                    }`}
-                  >
-                    <FiTarget className="w-4 h-4" />
-                    <span className="text-sm font-medium">Challenges</span>
-                  </Link>
-                </motion.div>
-
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.6 }}
-                >
-                  <Link
-                    to="/coupons"
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
-                      isActive('/coupons')
-                        ? 'bg-primary-100 text-primary-700 font-medium'
-                        : 'text-gray-600 hover:text-primary-600 hover:bg-primary-50'
-                    }`}
-                  >
-                    <FiGift className="w-4 h-4" />
-                    <span className="text-sm font-medium">Coupons</span>
-                  </Link>
-                </motion.div>
-
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.7 }}
-                >
-                  <Link
-                    to="/leaderboard"
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
-                      isActive('/leaderboard')
-                        ? 'bg-primary-100 text-primary-700 font-medium'
-                        : 'text-gray-600 hover:text-primary-600 hover:bg-primary-50'
-                    }`}
-                  >
-                    <FiTrendingUp className="w-4 h-4" />
-                    <span className="text-sm font-medium">Leaderboard</span>
-                  </Link>
-                </motion.div>
-              </div>
-            </div>
-          )}
         </header>
 
         {/* Breadcrumb Navigation */}
-        <div className="border-b border-gray-100 bg-white">
-          <div className="px-6 py-3">
-            <nav className="flex items-center space-x-2 text-sm text-gray-500">
-              <Link to="/dashboard" className="hover:text-primary-600 transition-colors">
+        <div className="border-b border-slate-200 bg-white">
+          <div className="px-6 py-3 flex items-center justify-between gap-4">
+            <nav className="flex items-center space-x-2 text-sm text-slate-500 min-w-0">
+              <Link to="/dashboard" className="hover:text-warm-primary transition-colors">
                 Dashboard
               </Link>
               {location.pathname !== '/dashboard' && (
                 <>
                   <span>/</span>
-                  <span className="text-gray-900 font-medium">
+                  <span className="text-warm-text font-medium truncate">
                     {navigation.find(item => isActive(item.href))?.name || 'Page'}
                   </span>
                 </>
               )}
             </nav>
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="shrink-0 flex items-center gap-1.5 text-sm text-warm-textSecondary hover:text-warm-primary transition-colors"
+              title="Go back"
+            >
+              <FiArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Back</span>
+            </button>
           </div>
         </div>
 
@@ -455,17 +324,17 @@ const Layout = ({ children }) => {
 
         {/* Mobile Bottom Navigation - Only for regular users */}
         {user?.role !== 'admin' && (
-          <div className="lg:hidden border-t border-gray-200 bg-white">
+          <div className="lg:hidden border-t border-warm-border bg-white">
             <div className="flex items-center justify-around py-2">
               <Link
                 to="/dashboard"
                 className={`flex flex-col items-center p-2 rounded-lg transition-colors ${
                   isActive('/dashboard')
-                    ? 'text-primary-600 bg-primary-50'
-                    : 'text-gray-600 hover:text-primary-600'
+                    ? 'text-warm-primary bg-warm-container'
+                    : 'text-warm-textSecondary hover:text-warm-primary'
                 }`}
               >
-                <FiTrendingUp className="w-5 h-5 mb-1" />
+                <FiHome className="w-5 h-5 mb-1" />
                 <span className="text-xs font-medium">Dashboard</span>
               </Link>
               
@@ -473,8 +342,8 @@ const Layout = ({ children }) => {
                 to="/play-games"
                 className={`flex flex-col items-center p-2 rounded-lg transition-colors ${
                   isActive('/play-games')
-                    ? 'text-primary-600 bg-primary-50'
-                    : 'text-gray-600 hover:text-primary-600'
+                    ? 'text-warm-primary bg-warm-container'
+                    : 'text-warm-textSecondary hover:text-warm-primary'
                 }`}
               >
                 <FiPlay className="w-5 h-5 mb-1" />
@@ -485,8 +354,8 @@ const Layout = ({ children }) => {
                 to="/coupons"
                 className={`flex flex-col items-center p-2 rounded-lg transition-colors ${
                   isActive('/coupons')
-                    ? 'text-primary-600 bg-primary-50'
-                    : 'text-gray-600 hover:text-primary-600'
+                    ? 'text-warm-primary bg-warm-container'
+                    : 'text-warm-textSecondary hover:text-warm-primary'
                 }`}
               >
                 <FiGift className="w-5 h-5 mb-1" />
@@ -497,8 +366,8 @@ const Layout = ({ children }) => {
                 to="/profile"
                 className={`flex flex-col items-center p-2 rounded-lg transition-colors ${
                   isActive('/profile')
-                    ? 'text-primary-600 bg-primary-50'
-                    : 'text-gray-600 hover:text-primary-600'
+                    ? 'text-warm-primary bg-warm-container'
+                    : 'text-warm-textSecondary hover:text-warm-primary'
                 }`}
               >
                 <FiUser className="w-5 h-5 mb-1" />
@@ -517,7 +386,7 @@ const Layout = ({ children }) => {
             className="fixed bottom-6 right-6 z-40 lg:hidden"
           >
             <div className="relative group">
-              <button className="w-14 h-14 bg-gradient-to-r from-primary-500 to-primary-600 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center text-white">
+              <button className="w-14 h-14 bg-indigo-600 rounded-full shadow-sm hover:bg-indigo-700 transition-colors flex items-center justify-center text-white">
                 <FiMenu className="w-6 h-6" />
               </button>
               
@@ -526,32 +395,32 @@ const Layout = ({ children }) => {
                 <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-2 space-y-2">
                   <Link
                     to="/play-games"
-                    className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="flex items-center space-x-3 p-3 rounded-lg hover:bg-slate-50 transition-colors"
                   >
-                    <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center">
-                      <FiPlay className="w-4 h-4 text-primary-600" />
+                    <div className="w-8 h-8 bg-warm-container rounded-lg flex items-center justify-center">
+                      <FiPlay className="w-4 h-4 text-warm-primary" />
                     </div>
-                    <span className="text-sm font-medium text-gray-700">Play Games</span>
+                    <span className="text-sm font-medium text-slate-700">Play Games</span>
                   </Link>
                   
                   <Link
                     to="/coupons"
-                    className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="flex items-center space-x-3 p-3 rounded-lg hover:bg-slate-50 transition-colors"
                   >
-                    <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center">
-                      <FiGift className="w-4 h-4 text-primary-600" />
+                    <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+                      <FiGift className="w-4 h-4 text-indigo-600" />
                     </div>
-                    <span className="text-sm font-medium text-gray-700">Coupons</span>
+                    <span className="text-sm font-medium text-slate-700">Coupons</span>
                   </Link>
                   
                   <Link
                     to="/challenges"
-                    className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="flex items-center space-x-3 p-3 rounded-lg hover:bg-slate-50 transition-colors"
                   >
-                    <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center">
-                      <FiTarget className="w-4 h-4 text-primary-600" />
+                    <div className="w-8 h-8 bg-warm-container rounded-lg flex items-center justify-center">
+                      <FiTarget className="w-4 h-4 text-warm-primary" />
                     </div>
-                    <span className="text-sm font-medium text-gray-700">Challenges</span>
+                    <span className="text-sm font-medium text-slate-700">Interview Arena</span>
                   </Link>
                 </div>
               </div>

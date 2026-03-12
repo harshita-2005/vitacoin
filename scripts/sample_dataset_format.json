@@ -1,0 +1,28 @@
+[
+  {
+    "subject": "OS",
+    "topic": "Overview",
+    "question": "What is an operating system?",
+    "options": [
+      "Interface between the hardware and application programs",
+      "Collection of programs that manages hardware resources",
+      "System service provider to the application programs",
+      "All of the mentioned"
+    ],
+    "answer": "d",
+    "explanation": "An OS provides all these functions: interface, resource management, and services to applications."
+  },
+  {
+    "subject": "OS",
+    "topic": "Processes",
+    "question": "Which scheduling algorithm may cause starvation?",
+    "options": [
+      "Round Robin",
+      "Priority Scheduling",
+      "FCFS",
+      "Multilevel Queue"
+    ],
+    "answer": "b",
+    "explanation": "Low priority processes may never execute if higher priority processes keep arriving."
+  }
+]

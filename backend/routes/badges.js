@@ -52,6 +52,76 @@ router.get('/user', protect, async (req, res) => {
   }
 });
 
+// @desc    Get badge categories (must be before /:id)
+// @route   GET /api/badges/categories
+// @access  Private
+router.get('/categories', protect, async (req, res) => {
+  try {
+    const categories = [
+      { value: 'achievement', label: 'Achievement' },
+      { value: 'milestone', label: 'Milestone' },
+      { value: 'streak', label: 'Streak' },
+      { value: 'special', label: 'Special' },
+      { value: 'event', label: 'Event' },
+      { value: 'admin', label: 'Admin' }
+    ];
+    res.json(categories);
+  } catch (error) {
+    console.error('Categories fetch error:', error);
+    res.status(500).json({ error: 'Server error fetching categories', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
+  }
+});
+
+// @desc    Get badge rarities (must be before /:id)
+// @route   GET /api/badges/rarities
+// @access  Private
+router.get('/rarities', protect, async (req, res) => {
+  try {
+    const rarities = [
+      { value: 'common', label: 'Common', color: '#6c757d' },
+      { value: 'uncommon', label: 'Uncommon', color: '#28a745' },
+      { value: 'rare', label: 'Rare', color: '#007bff' },
+      { value: 'epic', label: 'Epic', color: '#6f42c1' },
+      { value: 'legendary', label: 'Legendary', color: '#fd7e14' }
+    ];
+    res.json(rarities);
+  } catch (error) {
+    console.error('Rarities fetch error:', error);
+    res.status(500).json({ error: 'Server error fetching rarities', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
+  }
+});
+
+// @desc    Get user badge progress (must be before /:id)
+// @route   GET /api/badges/progress
+// @access  Private
+router.get('/progress', protect, async (req, res) => {
+  try {
+    const BadgeService = require('../services/badgeService');
+    const progress = await BadgeService.getUserBadgeProgress(req.user._id);
+    if (!progress) return res.status(404).json({ error: 'User not found' });
+    res.json({ progress });
+  } catch (error) {
+    console.error('Badge progress fetch error:', error);
+    res.status(500).json({ error: 'Server error fetching badge progress', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
+  }
+});
+
+// @desc    Get recommended badges for user (must be before /:id)
+// @route   GET /api/badges/recommended
+// @access  Private
+router.get('/recommended', protect, async (req, res) => {
+  try {
+    const userId = req.user && req.user._id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized', recommended: [] });
+    const BadgeService = require('../services/badgeService');
+    const recommended = await BadgeService.getRecommendedBadges(userId);
+    res.json({ recommended: Array.isArray(recommended) ? recommended : [] });
+  } catch (error) {
+    console.error('Recommended badges fetch error:', error);
+    res.status(200).json({ recommended: [] });
+  }
+});
+
 // @desc    Get badge by ID
 // @route   GET /api/badges/:id
 // @access  Private
@@ -261,93 +331,6 @@ router.delete('/:id', protect, adminOrModerator, async (req, res) => {
     console.error('Badge deletion error:', error);
     res.status(500).json({ 
       error: 'Server error deleting badge',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
-
-// @desc    Get badge categories
-// @route   GET /api/badges/categories
-// @access  Private
-router.get('/categories', protect, async (req, res) => {
-  try {
-    const categories = [
-      { value: 'achievement', label: 'Achievement' },
-      { value: 'milestone', label: 'Milestone' },
-      { value: 'streak', label: 'Streak' },
-      { value: 'special', label: 'Special' },
-      { value: 'event', label: 'Event' },
-      { value: 'admin', label: 'Admin' }
-    ];
-
-    res.json(categories);
-  } catch (error) {
-    console.error('Categories fetch error:', error);
-    res.status(500).json({ 
-      error: 'Server error fetching categories',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
-
-// @desc    Get badge rarities
-// @route   GET /api/badges/rarities
-// @access  Private
-router.get('/rarities', protect, async (req, res) => {
-  try {
-    const rarities = [
-      { value: 'common', label: 'Common', color: '#6c757d' },
-      { value: 'uncommon', label: 'Uncommon', color: '#28a745' },
-      { value: 'rare', label: 'Rare', color: '#007bff' },
-      { value: 'epic', label: 'Epic', color: '#6f42c1' },
-      { value: 'legendary', label: 'Legendary', color: '#fd7e14' }
-    ];
-
-    res.json(rarities);
-  } catch (error) {
-    console.error('Rarities fetch error:', error);
-    res.status(500).json({ 
-      error: 'Server error fetching rarities',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
-
-// @desc    Get user badge progress
-// @route   GET /api/badges/progress
-// @access  Private
-router.get('/progress', protect, async (req, res) => {
-  try {
-    const BadgeService = require('../services/badgeService');
-    const progress = await BadgeService.getUserBadgeProgress(req.user._id);
-    
-    if (!progress) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    res.json({ progress });
-  } catch (error) {
-    console.error('Badge progress fetch error:', error);
-    res.status(500).json({ 
-      error: 'Server error fetching badge progress',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
-
-// @desc    Get recommended badges for user
-// @route   GET /api/badges/recommended
-// @access  Private
-router.get('/recommended', protect, async (req, res) => {
-  try {
-    const BadgeService = require('../services/badgeService');
-    const recommended = await BadgeService.getRecommendedBadges(req.user._id);
-    
-    res.json({ recommended });
-  } catch (error) {
-    console.error('Recommended badges fetch error:', error);
-    res.status(500).json({ 
-      error: 'Server error fetching recommended badges',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }

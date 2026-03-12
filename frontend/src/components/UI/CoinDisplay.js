@@ -1,8 +1,7 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { FiDollarSign } from 'react-icons/fi';
 
-const CoinDisplay = ({ balance = 0, size = 'md', showIcon = true, animate = true }) => {
+const CoinDisplay = ({ balance = 0, size = 'md', showIcon = true, animate = true, premium = false }) => {
   const formatBalance = (value) => {
     return new Intl.NumberFormat('en-US', {
       minimumFractionDigits: 0,
@@ -37,38 +36,30 @@ const CoinDisplay = ({ balance = 0, size = 'md', showIcon = true, animate = true
     '2xl': 'px-8 py-4'
   };
 
-  const CoinContent = () => (
-    <div className={`coin-display ${containerClasses[size]}`}>
-      {showIcon && (
-        <motion.div
-          animate={animate ? { rotate: [0, 360] } : {}}
-          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-        >
-          <FiDollarSign className={`coin-icon ${iconSizes[size]} text-coin-600`} />
-        </motion.div>
-      )}
-      <span className={`coin-amount ${sizeClasses[size]} font-bold`}>
-        {formatBalance(balance)}
-      </span>
-      <span className={`text-coin-600 font-medium ${sizeClasses[size]}`}>
-        coins
-      </span>
-    </div>
-  );
-
-  if (animate) {
+  const CoinContent = () => {
+    if (premium) {
+      return (
+        <div className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-white font-semibold shadow-sm ${sizeClasses[size]}`} style={{ backgroundColor: '#C8A96A' }}>
+          {showIcon && <FiDollarSign className={iconSizes[size]} />}
+          <span>{formatBalance(balance)}</span>
+          <span className="opacity-90">coins</span>
+        </div>
+      );
+    }
     return (
-      <motion.div
-        initial={{ scale: 0.8, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.3, ease: "easeOut" }}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-      >
-        <CoinContent />
-      </motion.div>
+      <div className={`coin-display ${containerClasses[size]}`}>
+        {showIcon && (
+          <FiDollarSign className={`coin-icon ${iconSizes[size]} mr-1`} />
+        )}
+        <span className={`coin-amount ${sizeClasses[size]}`}>
+          {formatBalance(balance)}
+        </span>
+        <span className={`text-slate-500 font-medium ${sizeClasses[size]}`}>
+          {' '}coins
+        </span>
+      </div>
     );
-  }
+  };
 
   return <CoinContent />;
 };
