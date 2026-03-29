@@ -25,6 +25,8 @@ const dailyChallengeRoutes = require('./routes/dailyChallenge');
 const datasetRoutes = require('./routes/dataset');
 const puzzleRoutes = require('./routes/puzzles');
 const mcqRoutes = require('./routes/mcqs');
+const notificationRoutes = require('./routes/notifications');
+const notificationService = require('./services/notificationService');
 
 const { authenticateSocket } = require('./middleware/auth');
 const { setupSocketHandlers } = require('./socket/socketHandlers');
@@ -99,6 +101,9 @@ io.use(authenticateSocket);
 // Setup Socket.IO handlers
 setupSocketHandlers(io);
 
+app.set('io', io);
+notificationService.setSocketIo(io);
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -115,6 +120,7 @@ app.use('/api/daily-challenge', dailyChallengeRoutes);
 app.use('/api/dataset', datasetRoutes);
 app.use('/api/puzzles', puzzleRoutes);
 app.use('/api/mcqs', mcqRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

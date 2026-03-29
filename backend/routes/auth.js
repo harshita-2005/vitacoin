@@ -190,7 +190,7 @@ router.get('/profile', protect, async (req, res) => {
 // @access  Private
 router.put('/profile', protect, async (req, res) => {
   try {
-    const { firstName, lastName, profilePicture } = req.body;
+    const { firstName, lastName, profilePicture, email } = req.body;
 
     const user = await User.findById(req.user._id);
     if (!user) {
@@ -201,6 +201,20 @@ router.put('/profile', protect, async (req, res) => {
     if (firstName) user.firstName = firstName;
     if (lastName) user.lastName = lastName;
     if (profilePicture !== undefined) user.profilePicture = profilePicture;
+
+    if (email !== undefined && typeof email === 'string') {
+      const nextEmail = email.trim().toLowerCase();
+      if (nextEmail && nextEmail !== user.email) {
+        const taken = await User.findOne({
+          email: nextEmail,
+          _id: { $ne: user._id }
+        });
+        if (taken) {
+          return res.status(400).json({ error: 'Email already in use' });
+        }
+        user.email = nextEmail;
+      }
+    }
 
     const updatedUser = await user.save();
 

@@ -122,6 +122,27 @@ router.get('/recommended', protect, async (req, res) => {
   }
 });
 
+// @desc    Check and award badges for user (before /:id so "check" is not treated as an id)
+// @route   POST /api/badges/check
+// @access  Private
+router.post('/check', protect, async (req, res) => {
+  try {
+    const BadgeService = require('../services/badgeService');
+    await BadgeService.checkAllBadges(req.user._id);
+
+    res.json({
+      message: 'Badge check completed successfully',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Badge check error:', error);
+    res.status(500).json({
+      error: 'Server error checking badges',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 // @desc    Get badge by ID
 // @route   GET /api/badges/:id
 // @access  Private
@@ -331,27 +352,6 @@ router.delete('/:id', protect, adminOrModerator, async (req, res) => {
     console.error('Badge deletion error:', error);
     res.status(500).json({ 
       error: 'Server error deleting badge',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
-
-// @desc    Check and award badges for user
-// @route   POST /api/badges/check
-// @access  Private
-router.post('/check', protect, async (req, res) => {
-  try {
-    const BadgeService = require('../services/badgeService');
-    await BadgeService.checkAllBadges(req.user._id);
-    
-    res.json({ 
-      message: 'Badge check completed successfully',
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Badge check error:', error);
-    res.status(500).json({ 
-      error: 'Server error checking badges',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }

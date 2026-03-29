@@ -11,12 +11,7 @@ import {
 } from '../../utils/dailyChallengeStorage';
 
 const TOTAL_TASKS = 7;
-const FIXED_COINS = 5;
-const FIXED_XP = 10;
-const MAX_BONUS_COINS = 10;
-const MAX_BONUS_XP = 15;
-const REWARD_COINS = FIXED_COINS + MAX_BONUS_COINS;
-const REWARD_XP = FIXED_XP + MAX_BONUS_XP;
+const FALLBACK = { baseCoins: 5, baseXp: 10, bonusCoinsMax: 10, bonusXpMax: 15 };
 
 const DailyChallenge = ({ onStart }) => {
   const [status, setStatus] = useState(null);
@@ -87,11 +82,19 @@ const DailyChallenge = ({ onStart }) => {
     if (onStart) onStart();
   };
 
+  const rr = status?.rewardRules;
+  const baseCoins = rr?.baseCoins ?? FALLBACK.baseCoins;
+  const baseXp = rr?.baseXp ?? FALLBACK.baseXp;
+  const maxBonusCoins = rr?.bonusCoinsMax ?? FALLBACK.bonusCoinsMax;
+  const maxBonusXp = rr?.bonusXpMax ?? FALLBACK.bonusXpMax;
+  const rewardCoinsMax = rr?.maxCoinsIfCompleted ?? baseCoins + maxBonusCoins;
+  const rewardXpMax = rr?.maxXpIfCompleted ?? baseXp + maxBonusXp;
+
   const coinsAwarded = status?.coinsAwarded ?? 0;
   const xpAwarded = status?.xpAwarded ?? 0;
   const correctAnswers = status?.correctAnswers ?? 0;
-  const bonusCoins = Math.max(0, coinsAwarded - FIXED_COINS);
-  const bonusXp = Math.max(0, xpAwarded - FIXED_XP);
+  const bonusCoins = Math.max(0, coinsAwarded - baseCoins);
+  const bonusXp = Math.max(0, xpAwarded - baseXp);
 
   return (
     <motion.div
@@ -109,7 +112,7 @@ const DailyChallenge = ({ onStart }) => {
             <div>
               <h3 className="text-xl font-bold text-warm-text">Daily Challenge</h3>
               <p className="text-sm text-warm-textSecondary mt-0.5">
-                Complete today&apos;s <strong>7 tasks</strong> in 3 rounds to earn rewards.
+                Complete today&apos;s <strong>{TOTAL_TASKS} tasks</strong> in 3 rounds. Rewards use admin settings (base + bonus for correct answers).
               </p>
             </div>
           </div>
@@ -166,8 +169,8 @@ const DailyChallenge = ({ onStart }) => {
               {completedToday && (coinsAwarded > 0 || xpAwarded > 0) ? (
                 <div className="space-y-1.5 text-sm">
                   <div className="flex justify-between items-center text-warm-textSecondary">
-                    <span>Completion</span>
-                    <span className="font-medium">{FIXED_COINS} coins + {FIXED_XP} XP</span>
+                    <span>Completion (base)</span>
+                    <span className="font-medium">{baseCoins} coins + {baseXp} XP</span>
                   </div>
                   <div className="flex justify-between items-center text-warm-textSecondary">
                     <span>Correct ({correctAnswers}/{TOTAL_TASKS})</span>
@@ -181,12 +184,16 @@ const DailyChallenge = ({ onStart }) => {
               ) : (
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-center sm:text-left">
                   <div>
-                    <div className="text-lg font-bold text-primary-600">Up to +{REWARD_COINS} coins</div>
-                    <div className="text-xs text-warm-textSecondary">{FIXED_COINS} for finishing + up to {MAX_BONUS_COINS} for correct answers</div>
+                    <div className="text-lg font-bold text-primary-600">Up to +{rewardCoinsMax} coins</div>
+                    <div className="text-xs text-warm-textSecondary">
+                      {baseCoins} base for finishing all tasks + up to {maxBonusCoins} extra for correct answers
+                    </div>
                   </div>
                   <div>
-                    <div className="text-lg font-bold text-orange-600">Up to +{REWARD_XP} XP</div>
-                    <div className="text-xs text-warm-textSecondary">{FIXED_XP} for finishing + up to {MAX_BONUS_XP} for correct answers</div>
+                    <div className="text-lg font-bold text-orange-600">Up to +{rewardXpMax} XP</div>
+                    <div className="text-xs text-warm-textSecondary">
+                      {baseXp} base + up to {maxBonusXp} from correct answers
+                    </div>
                   </div>
                 </div>
               )}

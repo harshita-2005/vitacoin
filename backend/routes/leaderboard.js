@@ -14,36 +14,28 @@ router.get('/', protect, async (req, res) => {
     
     const sortOptions = {
       coins: { coinBalance: -1 },
-      experience: { experience: -1 },
-      tasks: { totalTasks: -1 },
+      experience: { experiencePoints: -1 },
+      tasks: { gamesPlayedTotal: -1 },
       badges: { totalBadges: -1 }
     };
 
     const sortField = sortOptions[sortBy] || sortOptions.coins;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Get users with task completion counts
+    // User model uses experiencePoints (not experience); badges are on user.badges[];
+    // games played = sum of gameProgress[*].timesPlayed
     const users = await User.aggregate([
       {
-        $lookup: {
-          from: 'taskcompletions',
-          localField: '_id',
-          foreignField: 'userId',
-          as: 'completions'
-        }
-      },
-      {
         $addFields: {
-          totalTasks: { $size: '$completions' },
-          totalBadges: {
-            $size: {
-              $filter: {
-                input: '$completions',
-                cond: { $ne: ['$$this.reward.badgeId', null] }
-              }
+          gamesPlayedTotal: {
+            $reduce: {
+              input: { $objectToArray: { $ifNull: ['$gameProgress', {}] } },
+              initialValue: 0,
+              in: { $add: ['$$value', { $ifNull: ['$$this.v.timesPlayed', 0] }] }
             }
           },
-          experience: { $ifNull: ['$experience', 0] }
+          totalBadges: { $size: { $ifNull: ['$badges', []] } },
+          experiencePoints: { $ifNull: ['$experiencePoints', 0] }
         }
       },
       {
@@ -62,11 +54,11 @@ router.get('/', protect, async (req, res) => {
           lastName: 1,
           username: 1,
           coinBalance: 1,
-          experience: 1,
-          totalTasks: 1,
+          experiencePoints: 1,
+          gamesPlayedTotal: 1,
           totalBadges: 1,
-          avatar: 1,
-          level: 1
+          profilePicture: 1,
+          userLevel: 1
         }
       }
     ]);

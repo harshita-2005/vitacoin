@@ -5,11 +5,12 @@ import {
   FiAward,
   FiTrendingUp,
   FiSettings,
-  FiTarget,
+  FiCalendar,
   FiPlay,
   FiLogOut,
   FiDatabase,
-  FiPlusCircle
+  FiPlusCircle,
+  FiTarget
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import axios from 'axios';
@@ -45,6 +46,11 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({});
+  const [datasetTimestamps, setDatasetTimestamps] = useState({
+    verbalLastAt: null,
+    codeBreakerLastAt: null
+  });
+  const [datasetLoading, setDatasetLoading] = useState({ verbal: false, codebreaker: false });
   const { logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -65,8 +71,21 @@ const AdminDashboard = () => {
   const fetchAdminData = async () => {
     try {
       setLoading(true);
-      const statsRes = await axios.get('/api/admin/stats');
+      const [statsRes, dsRes] = await Promise.all([
+        axios.get('/api/admin/stats'),
+        axios.get('/api/admin/dataset/status', {
+          params: { _: Date.now() },
+          headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
+        })
+      ]);
       setStats(statsRes.data);
+      const ds = dsRes.data;
+      if (ds && typeof ds === 'object') {
+        setDatasetTimestamps({
+          verbalLastAt: ds.verbalLastAt ?? null,
+          codeBreakerLastAt: ds.codeBreakerLastAt ?? null
+        });
+      }
     } catch (error) {
       console.error('Error fetching admin data:', error);
     } finally {
@@ -74,9 +93,40 @@ const AdminDashboard = () => {
     }
   };
 
+  const refreshDatasetTimestamps = async () => {
+    try {
+      const { data } = await axios.get('/api/admin/dataset/status', {
+        params: { _: Date.now() },
+        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
+      });
+      if (data && typeof data === 'object') {
+        setDatasetTimestamps({
+          verbalLastAt: data.verbalLastAt ?? null,
+          codeBreakerLastAt: data.codeBreakerLastAt ?? null
+        });
+      }
+    } catch (e) {
+      console.warn('Dataset status:', e);
+    }
+  };
 
+  const formatDatasetDate = (iso) => {
+    if (!iso) return null;
+    try {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return null;
+      return d.toLocaleDateString(undefined, {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    } catch {
+      return null;
+    }
+  };
 
-  const [datasetLoading, setDatasetLoading] = useState({ verbal: false, codebreaker: false });
+  const verbalDatasetDate = formatDatasetDate(datasetTimestamps.verbalLastAt);
+  const codeBreakerDatasetDate = formatDatasetDate(datasetTimestamps.codeBreakerLastAt);
 
   const handleAddVerbalDataset = async () => {
     setDatasetLoading((prev) => ({ ...prev, verbal: true }));
@@ -84,6 +134,7 @@ const AdminDashboard = () => {
       const res = await axios.post('/api/admin/dataset/verbal', { count: 10 });
       if (res.data?.success) {
         toast.success(res.data.message || `Added ${res.data.added} words. Total: ${res.data.total}.`);
+        await refreshDatasetTimestamps();
       } else {
         toast.error(res.data?.error || 'Failed to add data');
       }
@@ -100,6 +151,7 @@ const AdminDashboard = () => {
       const res = await axios.post('/api/admin/dataset/codebreaker', { count: 15 });
       if (res.data?.success) {
         toast.success(res.data.message || `Added ${res.data.added} words. Total: ${res.data.total}.`);
+        await refreshDatasetTimestamps();
       } else {
         toast.error(res.data?.error || 'Failed to add data');
       }
@@ -211,11 +263,11 @@ const AdminDashboard = () => {
 
             <div className="card">
               <div className="card-body text-center">
-                <FiTarget className="w-8 h-8 text-success-600 mx-auto mb-2" />
+                <FiCalendar className="w-8 h-8 text-success-600 mx-auto mb-2" />
                 <div className="text-2xl font-bold text-gray-900">
-                  {stats.activeChallenges || 0}
+                  {stats.dailyChallengeCompletionsToday ?? 0}
                 </div>
-                <div className="text-sm text-gray-500">Active Challenges</div>
+                <div className="text-sm text-gray-500">Daily challenge completions (today)</div>
               </div>
             </div>
 
@@ -273,6 +325,30 @@ const AdminDashboard = () => {
                   <FiDatabase className="w-5 h-5 text-primary-600" />
                   Import content
                 </h3>
+                <div className="rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3 mb-6 text-sm text-gray-700">
+                  <p className="font-semibold text-gray-900 mb-2">Dataset files last updated</p>
+                  {!verbalDatasetDate && !codeBreakerDatasetDate ? (
+                    <p className="text-sm text-gray-500 m-0">No dataset updates recorded yet.</p>
+                  ) : (
+                    <ul className="space-y-1.5 m-0 list-none p-0">
+                      {verbalDatasetDate && (
+                        <li>
+                          <span className="text-gray-500">Verbal IQ:</span>{' '}
+                          <span className="text-gray-900">{verbalDatasetDate}</span>
+                        </li>
+                      )}
+                      {codeBreakerDatasetDate && (
+                        <li>
+                          <span className="text-gray-500">Code Breaker:</span>{' '}
+                          <span className="text-gray-900">{codeBreakerDatasetDate}</span>
+                        </li>
+                      )}
+                    </ul>
+                  )}
+                  <p className="text-xs text-gray-500 mt-2 mb-0">
+                    Dates reflect when each file was last updated on disk (imports or manual edits).
+                  </p>
+                </div>
                 <p className="text-gray-600 mb-6">
                   Fetch new words from external APIs and merge them into live datasets so players see less repetition.
                 </p>

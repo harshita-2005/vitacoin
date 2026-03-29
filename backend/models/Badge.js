@@ -52,6 +52,11 @@ const badgeSchema = new mongoose.Schema({
       default: 0,
       min: [0, 'Login streak cannot be negative']
     },
+    transactionsRequired: {
+      type: Number,
+      default: 0,
+      min: [0, 'Transactions required cannot be negative']
+    },
     specialConditions: [{
       type: String,
       trim: true
@@ -162,13 +167,23 @@ badgeSchema.virtual('rarityBackground').get(function() {
 // Method to check if user can earn this badge
 badgeSchema.methods.canUserEarn = function(user) {
   if (!this.isAvailable) return false;
-  
-  // Check coin requirement
-  if (user.coinBalance < this.requirements.coinsRequired) return false;
-  
-  // Check if user already has this badge
-  if (user.badges.includes(this._id)) return false;
-  
+
+  const req = this.requirements || {};
+  const hasId = (user.badges || []).some(
+    (id) => id && id.toString() === this._id.toString()
+  );
+  if (hasId) return false;
+
+  if ((req.coinsRequired || 0) > 0 && user.coinBalance < req.coinsRequired) return false;
+  if ((req.tasksCompleted || 0) > 0 && (user.tasksCompleted || 0) < req.tasksCompleted) {
+    return false;
+  }
+  if ((req.loginStreak || 0) > 0 && (user.loginStreak || 0) < req.loginStreak) return false;
+  if ((req.transactionsRequired || 0) > 0) {
+    const tx = typeof user.transactionCount === 'number' ? user.transactionCount : 0;
+    if (tx < req.transactionsRequired) return false;
+  }
+
   return true;
 };
 

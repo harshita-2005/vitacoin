@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
+const notificationService = require('./notificationService');
 
 /**
  * Game Reward Service
@@ -394,10 +395,24 @@ class GameRewardService {
             }
           });
           await transaction.save();
+
+          await notificationService.createInAppNotification(user._id, {
+            title: 'Coins earned!',
+            message: `You earned ${rewards.coins} coins from ${gameLabel} (${difficulty}).`,
+            type: 'success',
+            category: 'coins'
+          });
         }
       } else {
         // No rewards earned - still save progress but don't update coins
         await user.save();
+      }
+
+      try {
+        const BadgeService = require('./badgeService');
+        await BadgeService.checkAllBadges(user._id);
+      } catch (badgeErr) {
+        console.warn('Badge check after game:', badgeErr.message);
       }
 
       // Get updated attempt count (attempt is consumed when game starts)

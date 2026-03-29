@@ -87,6 +87,10 @@ export const SocketProvider = ({ children }) => {
         setConnectedUsers(count);
       });
 
+      socketRef.current.on('notifications_refresh', () => {
+        window.dispatchEvent(new CustomEvent('vitacoin-notifications-refresh'));
+      });
+
       // System notification events
       socketRef.current.on('system_notification', (notification) => {
         console.log('System notification:', notification);

@@ -19,7 +19,8 @@ import {
   FiGift,
   FiArrowLeft,
   FiBarChart2,
-  FiTag
+  FiTag,
+  FiDatabase
 } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
@@ -53,6 +54,7 @@ const Layout = ({ children }) => {
     { name: 'Challenges', href: '/admin/challenges', icon: FiTarget },
     { name: 'Games', href: '/admin/games', icon: FiPlay },
     { name: 'Users', href: '/admin/users', icon: FiUsers },
+    { name: 'Data', href: '/admin/data', icon: FiDatabase },
     { name: 'Settings', href: '/admin/settings', icon: FiSettings },
   ] : [
     { name: 'Dashboard', href: '/dashboard', icon: FiHome },
@@ -209,28 +211,27 @@ const Layout = ({ children }) => {
 
             {/* Right side actions */}
             <div className="flex items-center space-x-4">
-              {/* Coin Display */}
-              <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.2 }}
-              >
-                <CoinDisplay balance={user?.coinBalance || 0} size="lg" premium />
-              </motion.div>
+              {/* Coin Display — regular users only; admins manage the economy, not a personal balance */}
+              {user?.role !== 'admin' && (
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  <CoinDisplay balance={user?.coinBalance || 0} size="lg" premium />
+                </motion.div>
+              )}
 
-              {/* Notifications */}
-              <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.3 }}
-                className="relative"
-              >
-                <NotificationDropdown />
-                {/* Notification Badge */}
-                <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
-                  <span className="text-xs text-white font-bold">3</span>
-                </div>
-              </motion.div>
+              {/* Notifications — end-users only; admins use dashboard tools, not consumer alerts */}
+              {user?.role !== 'admin' && (
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <NotificationDropdown />
+                </motion.div>
+              )}
 
               {/* User Menu */}
               <motion.div
@@ -262,13 +263,6 @@ const Layout = ({ children }) => {
                     >
                       <FiUser className="w-4 h-4 mr-3" />
                       Profile
-                    </Link>
-                    <Link
-                      to="/settings"
-                      className="flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                    >
-                      <FiSettings className="w-4 h-4 mr-3" />
-                      Settings
                     </Link>
                     <div className="border-t border-gray-100 my-1"></div>
                     <button

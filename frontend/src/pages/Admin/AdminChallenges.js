@@ -1,7 +1,24 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { FiCalendar, FiRefreshCw, FiTrendingUp } from 'react-icons/fi';
+import { FiCalendar, FiRefreshCw, FiTrendingUp, FiEdit2, FiX } from 'react-icons/fi';
 import axios from 'axios';
+import toast from 'react-hot-toast';
+
+const StatMini = ({ value, label, title }) => {
+  const num =
+    value == null || value === '' ? 0 : typeof value === 'number' ? value : Number(value);
+  const safe = Number.isFinite(num) ? num : 0;
+  const show = safe.toLocaleString();
+  return (
+    <div
+      title={title}
+      className="inline-flex flex-col items-center justify-center shrink-0 rounded-xl border border-warm-border bg-white px-5 py-2.5 text-center shadow-sm min-h-[3.5rem] w-[10.25rem] sm:w-[11rem]"
+    >
+      <p className="text-sm font-bold text-warm-primary tabular-nums leading-none">{show}</p>
+      <p className="text-[11px] text-warm-textSecondary mt-1.5 leading-snug">{label}</p>
+    </div>
+  );
+};
 
 const AdminChallenges = () => {
   const [loading, setLoading] = useState(true);
@@ -9,18 +26,37 @@ const AdminChallenges = () => {
   const [dailyOverview, setDailyOverview] = useState(null);
   const [weeklySummary, setWeeklySummary] = useState(null);
   const [loadError, setLoadError] = useState('');
+  const [rewardForm, setRewardForm] = useState({
+    baseCoins: 5,
+    baseXp: 10,
+    bonusCoinsMax: 10,
+    bonusXpMax: 15
+  });
+  const [rewardSaving, setRewardSaving] = useState(false);
+  const [rewardRulesEditing, setRewardRulesEditing] = useState(false);
+  const [rewardFormSnapshot, setRewardFormSnapshot] = useState(null);
 
   const fetchStats = useCallback(async (isRefresh = false) => {
     setLoadError('');
     if (isRefresh) setRefreshing(true);
     try {
       const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
-      const [dailyRes, weeklyRes] = await Promise.all([
+      const [dailyRes, weeklyRes, rewardRes] = await Promise.all([
         axios.get('/api/admin/daily-challenge/overview', { headers }),
-        axios.get('/api/admin/daily-challenge/weekly-summary', { headers })
+        axios.get('/api/admin/daily-challenge/weekly-summary', { headers }),
+        axios.get('/api/admin/daily-challenge/reward-settings', { headers })
       ]);
       setDailyOverview(dailyRes.data);
       setWeeklySummary(weeklyRes.data);
+      const rw = rewardRes.data;
+      if (rw && typeof rw.baseCoins === 'number') {
+        setRewardForm({
+          baseCoins: rw.baseCoins,
+          baseXp: rw.baseXp,
+          bonusCoinsMax: rw.bonusCoinsMax,
+          bonusXpMax: rw.bonusXpMax
+        });
+      }
     } catch (error) {
       console.error('Error loading challenge stats:', error);
       setLoadError('Could not load statistics.');
@@ -29,6 +65,36 @@ const AdminChallenges = () => {
       setRefreshing(false);
     }
   }, []);
+
+  const beginRewardRulesEdit = () => {
+    setRewardFormSnapshot({ ...rewardForm });
+    setRewardRulesEditing(true);
+  };
+
+  const cancelRewardRulesEdit = () => {
+    if (rewardFormSnapshot) {
+      setRewardForm(rewardFormSnapshot);
+    }
+    setRewardRulesEditing(false);
+    setRewardFormSnapshot(null);
+  };
+
+  const saveRewardSettings = async (e) => {
+    e?.preventDefault?.();
+    setRewardSaving(true);
+    try {
+      const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
+      await axios.put('/api/admin/daily-challenge/reward-settings', rewardForm, { headers });
+      toast.success('Daily challenge rewards updated. New values apply to the next completion.');
+      setRewardRulesEditing(false);
+      setRewardFormSnapshot(null);
+      await fetchStats(true);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Could not save');
+    } finally {
+      setRewardSaving(false);
+    }
+  };
 
   useEffect(() => {
     fetchStats();
@@ -44,14 +110,12 @@ const AdminChallenges = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+        <div className="min-w-0 flex-1 sm:pr-2">
           <h1 className="text-3xl font-bold text-warm-text tracking-tight">Challenge Statistics</h1>
-          <p className="text-warm-textSecondary mt-1 max-w-xl">
-            View completion data and rewards distributed for the daily challenge.
-          </p>
-          <p className="text-sm text-warm-textSecondary/90 mt-2">
-            Daily challenges are system-generated and cannot be modified.
+          <p className="text-warm-textSecondary mt-1">
+            View completion stats and tune Vitacoin / XP rewards for the automatic 7-task daily challenge. Round mix is
+            still date-seeded; rewards apply to all users on their next run.
           </p>
         </div>
         <motion.button
@@ -108,55 +172,134 @@ const AdminChallenges = () => {
                 </ul>
               </div>
 
-              <div className="rounded-xl border border-warm-border bg-warm-secondary/25 px-4 py-4 sm:px-5 sm:py-4">
-                <p className="text-xs font-bold text-warm-text uppercase tracking-wide mb-3">Reward rules</p>
-                <p className="text-base sm:text-lg md:text-xl text-warm-text leading-snug flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                  <span className="inline-flex flex-wrap items-baseline gap-x-1.5">
-                    <span className="font-bold text-warm-text">Base reward:</span>
-                    <span className="font-semibold text-warm-primary tabular-nums">
-                      {dailyOverview.rewardRules?.baseCoins ?? 5} coins
-                    </span>
-                  </span>
-                  <span className="text-warm-primary/50 font-bold px-0.5 sm:px-1" aria-hidden>
-                    ·
-                  </span>
-                  <span className="inline-flex flex-wrap items-baseline gap-x-1.5">
-                    <span className="font-bold text-warm-text">Bonus:</span>
-                    <span className="font-semibold text-warm-primary tabular-nums">
-                      up to {dailyOverview.rewardRules?.bonusCoinsMax ?? 10} coins
-                    </span>
-                  </span>
-                  <span className="text-warm-primary/50 font-bold px-0.5 sm:px-1" aria-hidden>
-                    ·
-                  </span>
-                  <span className="inline-flex flex-wrap items-baseline gap-x-1.5">
-                    <span className="font-bold text-warm-text">Max reward:</span>
-                    <span className="font-semibold text-warm-primary tabular-nums">
-                      {dailyOverview.rewardRules?.maxCoinsIfCompleted ?? 15} coins
-                    </span>
-                  </span>
-                </p>
+              <div className="w-full max-w-xl sm:max-w-2xl mx-auto rounded-xl border border-warm-border bg-warm-secondary/25 px-4 py-4 sm:px-5 sm:py-4">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <p className="text-xs font-bold text-warm-text uppercase tracking-wide">Reward rules</p>
+                  {!rewardRulesEditing ? (
+                    <button
+                      type="button"
+                      onClick={beginRewardRulesEdit}
+                      className="inline-flex items-center justify-center p-2 rounded-lg text-warm-primary hover:bg-warm-primary/10 transition-colors"
+                      title="Edit base and bonus coins"
+                      aria-label="Edit reward rules"
+                    >
+                      <FiEdit2 className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={cancelRewardRulesEdit}
+                        disabled={rewardSaving}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-warm-textSecondary hover:bg-warm-border/40 disabled:opacity-50"
+                      >
+                        <FiX className="w-4 h-4" />
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => saveRewardSettings()}
+                        disabled={rewardSaving}
+                        className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-warm-primary text-white hover:opacity-95 disabled:opacity-50"
+                      >
+                        {rewardSaving ? 'Saving…' : 'Save'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {!rewardRulesEditing ? (
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div>
+                      <p className="text-[11px] font-medium text-warm-textSecondary uppercase tracking-wide mb-1">
+                        Base coins
+                      </p>
+                      <p className="text-xl font-bold text-warm-primary tabular-nums">
+                        {dailyOverview.rewardRules?.baseCoins ?? rewardForm.baseCoins}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium text-warm-textSecondary uppercase tracking-wide mb-1">
+                        Bonus coins
+                      </p>
+                      <p className="text-xl font-bold text-warm-primary tabular-nums">
+                        {dailyOverview.rewardRules?.bonusCoinsMax ?? rewardForm.bonusCoinsMax}
+                      </p>
+                      <p className="text-[10px] text-warm-textSecondary mt-0.5">max if all 7 correct</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium text-warm-textSecondary uppercase tracking-wide mb-1">
+                        Max coins
+                      </p>
+                      <p className="text-xl font-bold text-warm-primary tabular-nums">
+                        {dailyOverview.rewardRules?.maxCoinsIfCompleted ??
+                          (rewardForm.baseCoins + rewardForm.bonusCoinsMax)}
+                      </p>
+                      <p className="text-[10px] text-warm-textSecondary mt-0.5">base + bonus</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
+                    <div className="min-w-0 flex flex-col">
+                      <label className="block text-[11px] font-medium text-warm-textSecondary mb-1">Base coins</label>
+                      <input
+                        type="number"
+                        min={0}
+                        className="input input-bordered w-full min-w-0"
+                        value={rewardForm.baseCoins}
+                        onChange={(e) =>
+                          setRewardForm((p) => ({ ...p, baseCoins: Math.max(0, parseInt(e.target.value, 10) || 0) }))
+                        }
+                      />
+                      <p className="text-[10px] text-warm-textSecondary mt-1 leading-snug min-h-[2.5rem]">
+                        Awarded when the challenge is completed
+                      </p>
+                    </div>
+                    <div className="min-w-0 flex flex-col">
+                      <label className="block text-[11px] font-medium text-warm-textSecondary mb-1">Bonus coins</label>
+                      <input
+                        type="number"
+                        min={0}
+                        className="input input-bordered w-full min-w-0"
+                        value={rewardForm.bonusCoinsMax}
+                        onChange={(e) =>
+                          setRewardForm((p) => ({
+                            ...p,
+                            bonusCoinsMax: Math.max(0, parseInt(e.target.value, 10) || 0)
+                          }))
+                        }
+                      />
+                      <p className="text-[10px] text-warm-textSecondary mt-1 leading-snug min-h-[2.5rem]">
+                        Extra at full score (7/7)
+                      </p>
+                    </div>
+                    <div className="min-w-0 flex flex-col">
+                      <label className="block text-[11px] font-medium text-warm-textSecondary mb-1">Max coins</label>
+                      <div className="input input-bordered w-full min-w-0 flex items-center justify-center bg-warm-container/50 font-bold text-warm-primary tabular-nums min-h-[3rem]">
+                        {rewardForm.baseCoins + rewardForm.bonusCoinsMax}
+                      </div>
+                      <p className="text-[10px] text-warm-textSecondary mt-1 leading-snug min-h-[2.5rem]">auto</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="rounded-xl border border-warm-border bg-white p-4 text-center shadow-sm">
-                  <p className="text-2xl font-bold text-warm-primary">
-                    {dailyOverview.stats?.uniqueParticipants ?? 0}
-                  </p>
-                  <p className="text-xs text-warm-textSecondary mt-1 font-medium">Completions (Today)</p>
-                </div>
-                <div className="rounded-xl border border-warm-border bg-white p-4 text-center shadow-sm">
-                  <p className="text-2xl font-bold text-warm-primary">
-                    {dailyOverview.stats?.completionsLogged ?? 0}
-                  </p>
-                  <p className="text-xs text-warm-textSecondary mt-1 font-medium">Total Attempts</p>
-                </div>
-                <div className="rounded-xl border border-warm-border bg-white p-4 text-center shadow-sm">
-                  <p className="text-2xl font-bold text-warm-primary">
-                    {dailyOverview.stats?.totalCoinsPaid ?? 0}
-                  </p>
-                  <p className="text-xs text-warm-textSecondary mt-1 font-medium">Rewards Distributed</p>
-                </div>
+              <div className="flex flex-wrap gap-4 justify-center">
+                <StatMini
+                  value={dailyOverview.stats?.uniqueParticipants}
+                  label="Today's Users"
+                  title="Users who completed the challenge today"
+                />
+                <StatMini
+                  value={dailyOverview.stats?.completionsLogged}
+                  label="Today's Completions"
+                  title="Paid completions logged today (one ledger row per finish)"
+                />
+                <StatMini
+                  value={dailyOverview.stats?.totalCoinsPaid}
+                  label="Coins distributed"
+                  title="Vitacoins paid out today"
+                />
               </div>
 
               {dailyOverview.correctAnswerBreakdown?.length > 0 && (
@@ -215,13 +358,13 @@ const AdminChallenges = () => {
 
       {/* Week — secondary coffee accent */}
       <div className="rounded-2xl border border-warm-border bg-warm-card shadow-sm overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-5 py-4 bg-warm-secondary/35 border-b border-warm-border">
-          <h2 className="text-lg font-semibold text-warm-text flex items-center gap-2">
-            <FiTrendingUp className="w-5 h-5 text-warm-primary" />
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-5 py-4 bg-warm-primary text-white">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <FiTrendingUp className="w-5 h-5 opacity-90" />
             Weekly Summary
           </h2>
           {weeklySummary?.weekUtcStart && (
-            <span className="text-sm text-warm-textSecondary tabular-nums font-medium">
+            <span className="text-sm tabular-nums bg-white/15 px-3 py-1 rounded-lg">
               {weeklySummary.weekUtcStart} — {weeklySummary.weekUtcEndExclusive}
             </span>
           )}
@@ -230,19 +373,22 @@ const AdminChallenges = () => {
         <div className="p-5 sm:p-6 bg-warm-container/40">
           {weeklySummary && (
             <div className="space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="rounded-xl border border-warm-border bg-white p-4 text-center shadow-sm">
-                  <p className="text-2xl font-bold text-warm-primary">{weeklySummary.stats?.uniqueParticipants ?? 0}</p>
-                  <p className="text-xs text-warm-textSecondary mt-1 font-medium">Active users</p>
-                </div>
-                <div className="rounded-xl border border-warm-border bg-white p-4 text-center shadow-sm">
-                  <p className="text-2xl font-bold text-warm-primary">{weeklySummary.stats?.completionsLogged ?? 0}</p>
-                  <p className="text-xs text-warm-textSecondary mt-1 font-medium">Total attempts</p>
-                </div>
-                <div className="rounded-xl border border-warm-border bg-white p-4 text-center shadow-sm">
-                  <p className="text-2xl font-bold text-warm-primary">{weeklySummary.stats?.totalCoinsPaid ?? 0}</p>
-                  <p className="text-xs text-warm-textSecondary mt-1 font-medium">Rewards distributed</p>
-                </div>
+              <div className="flex flex-wrap gap-4 justify-center">
+                <StatMini
+                  value={weeklySummary.stats?.uniqueParticipants}
+                  label="This week's users"
+                  title="Users with at least one completion this week"
+                />
+                <StatMini
+                  value={weeklySummary.stats?.completionsLogged}
+                  label="This week's completions"
+                  title="Paid completions this week"
+                />
+                <StatMini
+                  value={weeklySummary.stats?.totalCoinsPaid}
+                  label="This week's coins"
+                  title="Vitacoins paid out this week"
+                />
               </div>
 
               {weeklySummary.byDay?.length > 0 && (

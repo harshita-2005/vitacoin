@@ -172,6 +172,24 @@ function getCodeBreakerDynamic() {
   return readJsonSafe(CODEBREAKER_PATH);
 }
 
+/** ISO timestamps from file mtimes (reflects last import or any change to the JSON files). */
+function getDatasetFileTimestamps() {
+  ensureDataDir();
+  let verbalLastAt = null;
+  let codeBreakerLastAt = null;
+  try {
+    if (fs.existsSync(VERBAL_PATH)) {
+      verbalLastAt = fs.statSync(VERBAL_PATH).mtime.toISOString();
+    }
+    if (fs.existsSync(CODEBREAKER_PATH)) {
+      codeBreakerLastAt = fs.statSync(CODEBREAKER_PATH).mtime.toISOString();
+    }
+  } catch (e) {
+    console.warn('getDatasetFileTimestamps:', e.message);
+  }
+  return { verbalLastAt, codeBreakerLastAt };
+}
+
 module.exports = {
   addVerbalFromApi,
   getVerbalDynamic,
@@ -180,5 +198,6 @@ module.exports = {
   readJsonSafe,
   writeJson,
   VERBAL_PATH,
-  CODEBREAKER_PATH
+  CODEBREAKER_PATH,
+  getDatasetFileTimestamps
 };

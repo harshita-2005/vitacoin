@@ -2,14 +2,10 @@ const express = require('express');
 const { protect } = require('../middleware/auth');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
+const dailyChallengeConfigService = require('../services/dailyChallengeConfigService');
 const router = express.Router();
 
-// Fixed reward for completing the daily challenge (all 7 tasks)
-const DAILY_FIXED_COINS = 5;
-const DAILY_FIXED_XP = 10;
-// Bonus reward per correct answer (shared across 7 tasks; max when all 7 correct)
-const DAILY_BONUS_COINS = 10;
-const DAILY_BONUS_XP = 15;
+const TOTAL_DAILY_TASKS = 7;
 
 function getChallengeData(user, challengeKey) {
   const raw = user.dailyChallengeCompleted;
@@ -40,6 +36,7 @@ router.get('/status', protect, async (req, res) => {
       });
     }
 
+    const cfg = await dailyChallengeConfigService.getConfig();
     const today = new Date().toDateString();
     const challengeKey = `daily_${today}`;
     const challengeData = getChallengeData(user, challengeKey);
@@ -63,7 +60,18 @@ router.get('/status', protect, async (req, res) => {
       coinsAwarded: needsReset ? null : coinsAwarded,
       xpAwarded: needsReset ? null : xpAwarded,
       canPlay: !isCompleted || needsReset,
-      today: today
+      today: today,
+      rewardRules: {
+        totalTasks: TOTAL_DAILY_TASKS,
+        baseCoins: cfg.baseCoins,
+        baseXp: cfg.baseXp,
+        bonusCoinsMax: cfg.bonusCoinsMax,
+        bonusXpMax: cfg.bonusXpMax,
+        maxCoinsIfCompleted: cfg.baseCoins + cfg.bonusCoinsMax,
+        maxXpIfCompleted: cfg.baseXp + cfg.bonusXpMax,
+        help:
+          'You always get the base reward for finishing all tasks. Extra coins/XP scale with how many of the 7 tasks you answer correctly.'
+      }
     });
   } catch (error) {
     console.error('Daily challenge status error:', error);
@@ -80,8 +88,6 @@ router.get('/status', protect, async (req, res) => {
  * @desc    Complete daily challenge
  * @access  Private
  */
-const TOTAL_DAILY_TASKS = 7;
-
 router.post('/complete', protect, async (req, res) => {
   try {
     const { game, score, time, accuracy, correctAnswers } = req.body;
@@ -92,6 +98,8 @@ router.post('/complete', protect, async (req, res) => {
         error: 'Missing required fields: game, score'
       });
     }
+
+    const cfg = await dailyChallengeConfigService.getConfig();
 
     const user = await User.findById(req.user._id);
     if (!user) {
@@ -118,10 +126,10 @@ router.post('/complete', protect, async (req, res) => {
     const accuracyNum = Number(accuracy) || 0;
     const correctNum = Math.min(TOTAL_DAILY_TASKS, Math.max(0, parseInt(correctAnswers, 10) || 0));
 
-    // Fixed reward for completion + bonus for correct answers (out of 7)
+    // Base reward for finishing + bonus scaled by share of correct tasks (out of 7)
     const correctScale = correctNum / TOTAL_DAILY_TASKS;
-    const dailyReward = DAILY_FIXED_COINS + Math.round(DAILY_BONUS_COINS * correctScale);
-    const dailyXp = DAILY_FIXED_XP + Math.round(DAILY_BONUS_XP * correctScale);
+    const dailyReward = cfg.baseCoins + Math.round(cfg.bonusCoinsMax * correctScale);
+    const dailyXp = cfg.baseXp + Math.round(cfg.bonusXpMax * correctScale);
 
     // Award rewards (only add coins if > 0; addCoins throws on 0)
     if (dailyReward > 0) {

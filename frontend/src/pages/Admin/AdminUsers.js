@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FiUsers, FiEye, FiEdit, FiTrash2, FiToggleLeft, FiToggleRight, FiAward, FiTrendingUp } from 'react-icons/fi';
+import {
+  FiEye,
+  FiTrash2,
+  FiToggleLeft,
+  FiToggleRight,
+  FiCopy
+} from 'react-icons/fi';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
@@ -104,10 +110,15 @@ const AdminUsers = () => {
   };
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    const q = searchTerm.trim().toLowerCase();
+    const idStr = String(user._id || '').toLowerCase();
+    const matchesSearch =
+      !q ||
+      user.firstName?.toLowerCase().includes(q) ||
+      user.lastName?.toLowerCase().includes(q) ||
+      user.username?.toLowerCase().includes(q) ||
+      user.email?.toLowerCase().includes(q) ||
+      idStr.includes(q.replace(/\s/g, ''));
     
     const matchesRole = filterRole === 'all' || user.role === filterRole;
     const matchesStatus = filterStatus === 'all' || 
@@ -148,7 +159,7 @@ const AdminUsers = () => {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by name, username, or email..."
+              placeholder="Search by name, username, email, or user ID…"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
@@ -163,7 +174,6 @@ const AdminUsers = () => {
               <option value="all">All Roles</option>
               <option value="user">User</option>
               <option value="admin">Admin</option>
-              <option value="moderator">Moderator</option>
             </select>
           </div>
           
@@ -201,6 +211,9 @@ const AdminUsers = () => {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[12rem]">
+                  User ID
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   User
                 </th>
@@ -227,6 +240,14 @@ const AdminUsers = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredUsers.map((user) => (
                 <tr key={user._id} className="hover:bg-gray-50">
+                  <td className="px-4 py-4 align-top whitespace-nowrap">
+                    <code
+                      className="font-mono text-[11px] text-gray-600 tabular-nums"
+                      title={String(user._id)}
+                    >
+                      {String(user._id)}
+                    </code>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
@@ -236,14 +257,14 @@ const AdminUsers = () => {
                           </span>
                         </div>
                       </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
+                      <div className="ml-4 min-w-0">
+                        <div className="text-sm font-medium text-gray-900 truncate">
                           {user.firstName} {user.lastName}
                         </div>
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-gray-500 truncate">
                           @{user.username}
                         </div>
-                        <div className="text-sm text-gray-400">
+                        <div className="text-sm text-gray-400 truncate">
                           {user.email}
                         </div>
                       </div>
@@ -381,6 +402,28 @@ const AdminUsers = () => {
                         Account
                       </h3>
                       <dl className="space-y-3.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-[7.5rem_1fr] gap-2 sm:gap-3 sm:items-start">
+                          <dt className="text-[11px] font-bold uppercase tracking-wide text-warm-textSecondary">
+                            User ID
+                          </dt>
+                          <dd className="flex flex-wrap items-center gap-2 min-w-0">
+                            <code className="text-xs font-mono font-bold text-warm-text break-all leading-snug">
+                              {selectedUser._id}
+                            </code>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(String(selectedUser._id));
+                                toast.success('User ID copied');
+                              }}
+                              className="inline-flex items-center gap-1 shrink-0 rounded-lg px-2 py-1 text-[11px] font-bold text-warm-primary ring-1 ring-warm-border/60 hover:bg-warm-container/80"
+                              title="Copy ID"
+                            >
+                              <FiCopy className="w-3.5 h-3.5" />
+                              Copy
+                            </button>
+                          </dd>
+                        </div>
                         {[
                           ['Full name', `${selectedUser.firstName} ${selectedUser.lastName}`],
                           ['Username', `@${selectedUser.username}`],

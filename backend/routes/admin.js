@@ -1,19 +1,35 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const User = require('../models/User');
 const Challenge = require('../models/Challenge');
 const Game = require('../models/Game');
 const Transaction = require('../models/Transaction');
 const { protect } = require('../middleware/auth');
-const { addVerbalFromApi, addCodeBreakerFromApi } = require('../services/datasetService');
+const { addVerbalFromApi, addCodeBreakerFromApi, getDatasetFileTimestamps } = require('../services/datasetService');
 const { getDailyChallengeRecipe } = require('../utils/dailyChallengeRecipe');
+const dailyChallengeConfigService = require('../services/dailyChallengeConfigService');
+const notificationService = require('../services/notificationService');
 
-/** Mirrors backend/routes/dailyChallenge.js reward formula (for admin display). */
-const DAILY_FIXED_COINS = 5;
-const DAILY_FIXED_XP = 10;
-const DAILY_BONUS_COINS = 10;
-const DAILY_BONUS_XP = 15;
 const DAILY_TASKS = 7;
+
+/** Server local midnight → next midnight (matches daily challenge keys using toDateString()). */
+function getLocalDayBounds(d = new Date()) {
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+  const end = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 0, 0, 0, 0);
+  return { start, end };
+}
+
+/** Monday 00:00 local → next Monday 00:00 local */
+function getLocalIsoWeekRange(ref = new Date()) {
+  const d = new Date(ref);
+  const day = d.getDay();
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate() - daysFromMonday, 0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 7);
+  return { start, end };
+}
 
 // Admin middleware - check if user is admin
 const adminAuth = async (req, res, next) => {
@@ -30,24 +46,66 @@ const adminAuth = async (req, res, next) => {
 // Apply auth and admin middleware to all routes
 router.use(protect, adminAuth);
 
+/**
+ * Broadcast an in-app notification to regular users (role `user`).
+ * Body: { title, message, type?, userIds?: string[] } — omit userIds to notify all active users.
+ */
+router.post('/notifications/broadcast', async (req, res) => {
+  try {
+    const { title, message, type, userIds } = req.body;
+    if (!title || typeof title !== 'string' || !title.trim()) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+    let ids = null;
+    if (Array.isArray(userIds) && userIds.length > 0) {
+      const cleaned = userIds
+        .map((id) => String(id).trim())
+        .filter(Boolean);
+      const invalid = cleaned.filter((id) => !mongoose.Types.ObjectId.isValid(id));
+      if (invalid.length > 0) {
+        return res.status(400).json({ error: 'One or more user IDs are invalid. Copy IDs from the Users page.' });
+      }
+      ids = cleaned;
+    }
+    const result = await notificationService.broadcastToUsers({
+      title: title.trim().slice(0, 120),
+      message: message.trim().slice(0, 500),
+      type: ['success', 'info', 'warning', 'error'].includes(type) ? type : 'info',
+      userIds: ids
+    });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('Notification broadcast error:', error);
+    res.status(500).json({ error: 'Could not send notifications' });
+  }
+});
+
 // Get admin dashboard stats
 router.get('/stats', async (req, res) => {
   try {
-    const [totalUsers, activeChallenges, activeGames, totalCoins] = await Promise.all([
+    const { start, end } = getLocalDayBounds();
+    const [totalUsers, activeGames, totalCoins, dailyChallengeCompletionsToday] = await Promise.all([
       User.countDocuments({ isActive: true }),
-      Challenge.countDocuments({ isActive: true }),
       Game.countDocuments({ isActive: true }),
       Transaction.aggregate([
-        { $match: { type: 'earning' } },
+        { $match: { type: 'earn' } },
         { $group: { _id: null, total: { $sum: '$amount' } } }
-      ])
+      ]),
+      Transaction.countDocuments({
+        category: 'daily_challenge',
+        type: 'earn',
+        createdAt: { $gte: start, $lt: end }
+      })
     ]);
 
     res.json({
       totalUsers,
-      activeChallenges,
       activeGames,
-      totalCoins: totalCoins[0]?.total || 0
+      totalCoins: totalCoins[0]?.total || 0,
+      dailyChallengeCompletionsToday
     });
   } catch (error) {
     console.error('Error fetching admin stats:', error);
@@ -55,20 +113,36 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+router.get('/daily-challenge/reward-settings', async (req, res) => {
+  try {
+    const config = await dailyChallengeConfigService.getConfig();
+    res.json({ success: true, ...config });
+  } catch (error) {
+    console.error('Daily challenge reward settings GET error:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
+router.put('/daily-challenge/reward-settings', async (req, res) => {
+  try {
+    const updated = await dailyChallengeConfigService.updateConfig(req.body || {});
+    res.json({ success: true, ...updated });
+  } catch (error) {
+    console.error('Daily challenge reward settings PUT error:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
 /**
- * Built-in 7-task daily challenge (date-based recipe + fixed server rewards).
- * Not the same as manually created Challenge documents.
+ * Built-in 7-task daily challenge (date-based recipe + configurable server rewards).
+ * Stats use the server's local calendar day so they align with completion transactions.
  */
 router.get('/daily-challenge/overview', async (req, res) => {
   try {
     const recipe = getDailyChallengeRecipe();
+    const cfg = await dailyChallengeConfigService.getConfig();
 
-    const now = new Date();
-    const y = now.getUTCFullYear();
-    const m = now.getUTCMonth();
-    const d = now.getUTCDate();
-    const start = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
-    const end = new Date(Date.UTC(y, m, d + 1, 0, 0, 0, 0));
+    const { start, end } = getLocalDayBounds();
 
     const match = {
       category: 'daily_challenge',
@@ -133,22 +207,23 @@ router.get('/daily-challenge/overview', async (req, res) => {
     res.json({
       success: true,
       dateUtc: recipe.dateIso,
+      dateLocal: start.toISOString().slice(0, 10),
       note:
-        'Recipe uses UTC date (same as the app). Player "today" for completion may follow the server timezone in user records; stats below are completions logged today in UTC.',
+        'Counts include daily-challenge coin payouts recorded today in the server’s local timezone (same “day” as user completion keys).',
       recipe: {
         rounds: recipe.rounds,
         totalTasks: recipe.totalTasks,
         seed: recipe.seed
       },
       rewardRules: {
-        summary: `${DAILY_FIXED_COINS} base coins + up to ${DAILY_BONUS_COINS} bonus scaled by correct tasks (out of ${DAILY_TASKS}).`,
-        baseCoins: DAILY_FIXED_COINS,
-        bonusCoinsMax: DAILY_BONUS_COINS,
-        baseXp: DAILY_FIXED_XP,
-        bonusXpMax: DAILY_BONUS_XP,
+        summary: `${cfg.baseCoins} base coins + up to ${cfg.bonusCoinsMax} bonus scaled by correct tasks (out of ${DAILY_TASKS}).`,
+        baseCoins: cfg.baseCoins,
+        bonusCoinsMax: cfg.bonusCoinsMax,
+        baseXp: cfg.baseXp,
+        bonusXpMax: cfg.bonusXpMax,
         tasks: DAILY_TASKS,
-        minCoinsIfCompleted: DAILY_FIXED_COINS,
-        maxCoinsIfCompleted: DAILY_FIXED_COINS + DAILY_BONUS_COINS
+        minCoinsIfCompleted: cfg.baseCoins,
+        maxCoinsIfCompleted: cfg.baseCoins + cfg.bonusCoinsMax
       },
       stats: {
         completionsLogged: totalCompletions,
@@ -167,25 +242,13 @@ router.get('/daily-challenge/overview', async (req, res) => {
   }
 });
 
-/** UTC Monday 00:00 to next Monday 00:00 */
-function getUtcIsoWeekRange(ref = new Date()) {
-  const y = ref.getUTCFullYear();
-  const m = ref.getUTCMonth();
-  const d = ref.getUTCDate();
-  const day = new Date(Date.UTC(y, m, d)).getUTCDay(); // 0 Sun .. 6 Sat
-  const daysFromMonday = day === 0 ? 6 : day - 1;
-  const start = new Date(Date.UTC(y, m, d - daysFromMonday, 0, 0, 0, 0));
-  const end = new Date(start);
-  end.setUTCDate(start.getUTCDate() + 7);
-  return { start, end };
-}
-
 /**
- * Rolling automatic daily-challenge stats for current ISO week (UTC).
+ * Rolling automatic daily-challenge stats for current week (local Mon–Sun).
  */
 router.get('/daily-challenge/weekly-summary', async (req, res) => {
   try {
-    const { start, end } = getUtcIsoWeekRange();
+    const { start, end } = getLocalIsoWeekRange();
+    const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
     const match = {
       category: 'daily_challenge',
       type: 'earn',
@@ -209,7 +272,7 @@ router.get('/daily-challenge/weekly-summary', async (req, res) => {
         { $match: match },
         {
           $group: {
-            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'UTC' } },
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: localTz } },
             completions: { $sum: 1 },
             coins: { $sum: '$amount' },
             uniqueUsers: { $addToSet: '$user' }
@@ -268,7 +331,7 @@ router.get('/daily-challenge/weekly-summary', async (req, res) => {
       success: true,
       weekUtcStart: start.toISOString().slice(0, 10),
       weekUtcEndExclusive: end.toISOString().slice(0, 10),
-      note: 'Week runs Monday–Sunday UTC. Same automatic 7-task daily challenge; one completion per user per UTC day.',
+      note: 'Week runs Monday–Sunday in the server’s local timezone. One completion per user per local day.',
       stats: totals,
       byDay,
       topParticipants
@@ -472,8 +535,6 @@ router.get('/settings', async (req, res) => {
       maintenanceMode: false,
       allowRegistrations: true,
       emailNotifications: true,
-      taskAutoExpiry: 30,
-      challengeAutoExpiry: 7,
       maxTasksPerUser: 50,
       maxChallengesPerUser: 20
     };
@@ -494,8 +555,6 @@ router.put('/settings', async (req, res) => {
       maintenanceMode,
       allowRegistrations,
       emailNotifications,
-      taskAutoExpiry,
-      challengeAutoExpiry,
       maxTasksPerUser,
       maxChallengesPerUser
     } = req.body;
@@ -506,8 +565,6 @@ router.put('/settings', async (req, res) => {
       maintenanceMode,
       allowRegistrations,
       emailNotifications,
-      taskAutoExpiry,
-      challengeAutoExpiry,
       maxTasksPerUser,
       maxChallengesPerUser
     };
@@ -547,6 +604,22 @@ router.get('/system-stats', async (req, res) => {
 });
 
 // ---------- Dataset (add data from external APIs) ----------
+
+// @desc    Last modified times for dynamic dataset JSON files (import / edits)
+// @route   GET /api/admin/dataset/status
+// @access  Private/Admin
+router.get('/dataset/status', async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    const { verbalLastAt, codeBreakerLastAt } = getDatasetFileTimestamps();
+    res.json({ verbalLastAt, codeBreakerLastAt });
+  } catch (error) {
+    console.error('Admin dataset status error:', error);
+    res.status(500).json({ error: 'Failed to read dataset status' });
+  }
+});
 
 // @desc    Add Verbal IQ words from Datamuse API
 // @route   POST /api/admin/dataset/verbal

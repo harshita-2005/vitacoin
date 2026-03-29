@@ -1,6 +1,7 @@
 const Badge = require('../models/Badge');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
+const notificationService = require('./notificationService');
 
 class BadgeService {
   /**
@@ -10,6 +11,7 @@ class BadgeService {
     try {
       const user = await User.findById(userId);
       if (!user) return;
+      user.transactionCount = await Transaction.countDocuments({ user: userId });
 
       const taskBadges = await Badge.find({
         category: 'achievement',
@@ -19,7 +21,7 @@ class BadgeService {
       });
 
       for (const badge of taskBadges) {
-        if (!user.badges.includes(badge._id) && badge.canUserEarn(user)) {
+        if (!user.badges.some((id) => id && id.toString() === badge._id.toString()) && badge.canUserEarn(user)) {
           await this.awardBadgeToUser(badge._id, userId);
         }
       }
@@ -35,6 +37,7 @@ class BadgeService {
     try {
       const user = await User.findById(userId);
       if (!user) return;
+      user.transactionCount = await Transaction.countDocuments({ user: userId });
 
       const coinBadges = await Badge.find({
         category: 'milestone',
@@ -44,7 +47,7 @@ class BadgeService {
       });
 
       for (const badge of coinBadges) {
-        if (!user.badges.includes(badge._id) && badge.canUserEarn(user)) {
+        if (!user.badges.some((id) => id && id.toString() === badge._id.toString()) && badge.canUserEarn(user)) {
           await this.awardBadgeToUser(badge._id, userId);
         }
       }
@@ -60,6 +63,7 @@ class BadgeService {
     try {
       const user = await User.findById(userId);
       if (!user) return;
+      user.transactionCount = await Transaction.countDocuments({ user: userId });
 
       const streakBadges = await Badge.find({
         category: 'streak',
@@ -69,12 +73,44 @@ class BadgeService {
       });
 
       for (const badge of streakBadges) {
-        if (!user.badges.includes(badge._id) && badge.canUserEarn(user)) {
+        if (!user.badges.some((id) => id && id.toString() === badge._id.toString()) && badge.canUserEarn(user)) {
           await this.awardBadgeToUser(badge._id, userId);
         }
       }
     } catch (error) {
       console.error('Error checking login streak badges:', error);
+    }
+  }
+
+  /**
+   * Check badges that require a minimum number of transactions (wallet / activity history).
+   */
+  static async checkTransactionBadges(userId) {
+    try {
+      const txCount = await Transaction.countDocuments({ user: userId });
+      let user = await User.findById(userId);
+      if (!user) return;
+      user.transactionCount = txCount;
+
+      const txBadges = await Badge.find({
+        'requirements.transactionsRequired': { $gt: 0, $lte: txCount },
+        isActive: true,
+        isHidden: false
+      });
+
+      for (const badge of txBadges) {
+        user = await User.findById(userId);
+        if (!user) return;
+        user.transactionCount = txCount;
+        if (
+          !user.badges.some((id) => id && id.toString() === badge._id.toString()) &&
+          badge.canUserEarn(user)
+        ) {
+          await this.awardBadgeToUser(badge._id, userId);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking transaction badges:', error);
     }
   }
 
@@ -85,6 +121,7 @@ class BadgeService {
     try {
       const user = await User.findById(userId);
       if (!user) return;
+      user.transactionCount = await Transaction.countDocuments({ user: userId });
 
       let gameBadges = [];
 
@@ -120,7 +157,7 @@ class BadgeService {
 
       // Award game badges
       for (const badge of gameBadges) {
-        if (!user.badges.includes(badge._id) && badge.canUserEarn(user)) {
+        if (!user.badges.some((id) => id && id.toString() === badge._id.toString()) && badge.canUserEarn(user)) {
           await this.awardBadgeToUser(badge._id, userId);
         }
       }
@@ -136,6 +173,7 @@ class BadgeService {
     try {
       const user = await User.findById(userId);
       if (!user) return;
+      user.transactionCount = await Transaction.countDocuments({ user: userId });
 
       const specialBadges = await Badge.find({
         category: 'special',
@@ -145,7 +183,7 @@ class BadgeService {
       });
 
       for (const badge of specialBadges) {
-        if (!user.badges.includes(badge._id) && badge.canUserEarn(user)) {
+        if (!user.badges.some((id) => id && id.toString() === badge._id.toString()) && badge.canUserEarn(user)) {
           await this.awardBadgeToUser(badge._id, userId);
         }
       }
@@ -176,6 +214,13 @@ class BadgeService {
 
       console.log(`🎖️ Badge "${badge.name}" awarded to user ${user.username}`);
 
+      await notificationService.createInAppNotification(userId, {
+        title: 'Badge earned!',
+        message: `You unlocked “${badge.name}”.`,
+        type: 'success',
+        category: 'badge'
+      });
+
       return {
         success: true,
         badge: badge,
@@ -197,6 +242,9 @@ class BadgeService {
     try {
       const user = await User.findById(userId);
       if (!user) return null;
+
+      const txCount = await Transaction.countDocuments({ user: userId });
+      user.transactionCount = txCount;
 
       const userBadgeIds = Array.isArray(user.badges) ? user.badges : [];
 
@@ -220,6 +268,9 @@ class BadgeService {
         } else if ((req.loginStreak || 0) > 0) {
           progress = Math.min(user.loginStreak || 0, req.loginStreak);
           maxProgress = req.loginStreak;
+        } else if ((req.transactionsRequired || 0) > 0) {
+          progress = Math.min(txCount, req.transactionsRequired);
+          maxProgress = req.transactionsRequired;
         }
 
         let canEarn = false;
@@ -292,6 +343,9 @@ class BadgeService {
 
       // Check login streak badges
       await this.checkLoginStreakBadges(userId, user.loginStreak || 0);
+
+      // Transaction-based badges (e.g. Active Trader)
+      await this.checkTransactionBadges(userId);
 
       // Check special condition badges
       await this.checkSpecialConditionBadges(userId, 'early_user');
