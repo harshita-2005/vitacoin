@@ -27,7 +27,8 @@ const WordScramble = ({
   difficulty = 'easy',
   onScoreUpdate,
   resetKey = 0,
-  dailyChallengeTasks
+  dailyChallengeTasks,
+  questionCountOverride
 }) => {
   const [currentWord, setCurrentWord] = useState('');
   const [scrambledWord, setScrambledWord] = useState('');
@@ -59,12 +60,15 @@ const WordScramble = ({
   // ---------------- CONFIG ----------------
   const config = useMemo(() => {
     let totalWords = 18;
+    const adminW =
+      typeof questionCountOverride === 'number' && questionCountOverride > 0 ? questionCountOverride : null;
+    const pickTotal = (def) => dailyChallengeTasks ?? adminW ?? def;
     switch (difficulty) {
       case 'easy':
         totalWords = 18;
         return {
           words: WORD_BANK.easy,
-          totalWords: dailyChallengeTasks ?? totalWords,
+          totalWords: pickTotal(totalWords),
           baseTimeLimit: 12,
           wordLength: '3-5 letters',
           levelWords: 3
@@ -73,7 +77,7 @@ const WordScramble = ({
         totalWords = 24;
         return {
           words: WORD_BANK.medium,
-          totalWords: dailyChallengeTasks ?? totalWords,
+          totalWords: pickTotal(totalWords),
           baseTimeLimit: 14,
           wordLength: '5-7 letters',
           levelWords: 3
@@ -82,7 +86,7 @@ const WordScramble = ({
         totalWords = 30;
         return {
           words: WORD_BANK.hard,
-          totalWords: dailyChallengeTasks ?? totalWords,
+          totalWords: pickTotal(totalWords),
           baseTimeLimit: 18,
           wordLength: '7-12 letters',
           levelWords: 3
@@ -90,13 +94,13 @@ const WordScramble = ({
       default:
         return {
           words: ['CAT', 'DOG'],
-          totalWords: dailyChallengeTasks ?? 5,
+          totalWords: pickTotal(5),
           baseTimeLimit: 10,
           wordLength: '3-4 letters',
           levelWords: 3
         };
     }
-  }, [difficulty, dailyChallengeTasks]);
+  }, [difficulty, dailyChallengeTasks, questionCountOverride]);
 
   // ---------------- HELPERS ----------------
   const scrambleWord = (word) => {

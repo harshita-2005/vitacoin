@@ -7,6 +7,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useSocket } from '../../contexts/SocketContext';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import CoinDisplay from '../../components/UI/CoinDisplay';
+import AchievementMilestones from '../../components/Badges/AchievementMilestones';
 
 const Dashboard = () => {
   const [stats, setStats] = useState(null);
@@ -232,7 +233,9 @@ const Dashboard = () => {
             <div className="stats-icon !bg-blue-50 !text-blue-600">
               <FiRepeat className="w-6 h-6" />
             </div>
-            <div className="stats-value">{stats?.totalTransactions || 0}</div>
+            <div className="stats-value">
+              {stats?.totalTransactions ?? stats?.transactionCount ?? 0}
+            </div>
             <div className="stats-label">Total Transactions</div>
           </div>
         </motion.div>
@@ -426,75 +429,26 @@ const Dashboard = () => {
         </div>
       </motion.div>
 
-      {/* Achievement Progress - same warm bar as Earn Coins (#F4EFEA) */}
+      {/* Achievement Progress — shared with Badges page */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6 }}
-        className="rounded-xl border shadow-sm transition-all duration-200 hover:shadow-md bg-warm-container border-warm-border"
+        className="hover:shadow-md transition-shadow duration-200"
       >
-        <div className="px-6 py-5 border-b border-warm-border bg-white/60">
-          <h2 className="text-lg font-semibold text-warm-text">Achievement Progress</h2>
-          <p className="text-warm-textSecondary text-sm mt-0.5">Track your badge progress</p>
-        </div>
-        <div className="px-6 py-5">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-white/70 rounded-lg border border-warm-border">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
-                  <FiAward className="w-4 h-4 text-indigo-600" />
-                </div>
-                <div>
-                  <p className="font-semibold text-warm-text">First Steps</p>
-                  <p className="text-sm text-warm-textSecondary">Earn your first 100 coins</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-semibold text-warm-text">
-                  {Math.min(user?.coinBalance || 0, 100)} / 100
-                </p>
-                <div className="w-20 h-2 bg-warm-secondary rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-indigo-500 rounded-full transition-all duration-300"
-                    style={{ width: `${Math.min((user?.coinBalance || 0) / 100 * 100, 100)}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between p-4 bg-white/70 rounded-lg border border-warm-border">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
-                  <FiTrendingUp className="w-4 h-4 text-indigo-600" />
-                </div>
-                <div>
-                  <p className="font-semibold text-warm-text">Active Trader</p>
-                  <p className="text-sm text-warm-textSecondary">Complete 10 transactions</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-semibold text-warm-text">
-                  {Math.min(stats?.totalTransactions || 0, 10)} / 10
-                </p>
-                <div className="w-20 h-2 bg-warm-secondary rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-indigo-500 rounded-full transition-all duration-300"
-                    style={{ width: `${Math.min((stats?.totalTransactions || 0) / 10 * 100, 100)}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="px-6 py-4 border-t border-warm-border bg-white/60">
-          <button
-            type="button"
-            className="btn-secondary w-full"
-            onClick={() => window.location.href = '/badges'}
-          >
-            View All Badges
-          </button>
-        </div>
+        <AchievementMilestones
+          user={user}
+          totalTransactions={stats?.totalTransactions ?? stats?.transactionCount ?? 0}
+          footer={
+            <button
+              type="button"
+              className="btn-secondary w-full"
+              onClick={() => window.location.href = '/badges'}
+            >
+              View All Badges
+            </button>
+          }
+        />
       </motion.div>
       </div>
     </div>

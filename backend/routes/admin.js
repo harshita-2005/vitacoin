@@ -6,6 +6,14 @@ const Game = require('../models/Game');
 const Transaction = require('../models/Transaction');
 const { protect } = require('../middleware/auth');
 const { addVerbalFromApi, addCodeBreakerFromApi } = require('../services/datasetService');
+const { getDailyChallengeRecipe } = require('../utils/dailyChallengeRecipe');
+
+/** Mirrors backend/routes/dailyChallenge.js reward formula (for admin display). */
+const DAILY_FIXED_COINS = 5;
+const DAILY_FIXED_XP = 10;
+const DAILY_BONUS_COINS = 10;
+const DAILY_BONUS_XP = 15;
+const DAILY_TASKS = 7;
 
 // Admin middleware - check if user is admin
 const adminAuth = async (req, res, next) => {
@@ -47,6 +55,230 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+/**
+ * Built-in 7-task daily challenge (date-based recipe + fixed server rewards).
+ * Not the same as manually created Challenge documents.
+ */
+router.get('/daily-challenge/overview', async (req, res) => {
+  try {
+    const recipe = getDailyChallengeRecipe();
+
+    const now = new Date();
+    const y = now.getUTCFullYear();
+    const m = now.getUTCMonth();
+    const d = now.getUTCDate();
+    const start = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
+    const end = new Date(Date.UTC(y, m, d + 1, 0, 0, 0, 0));
+
+    const match = {
+      category: 'daily_challenge',
+      type: 'earn',
+      createdAt: { $gte: start, $lt: end }
+    };
+
+    const [totalCompletions, distinctUsers, coinsAgg, topParticipants, correctBreakdown] =
+      await Promise.all([
+        Transaction.countDocuments(match),
+        Transaction.distinct('user', match),
+        Transaction.aggregate([
+          { $match: match },
+          { $group: { _id: null, total: { $sum: '$amount' } } }
+        ]),
+        Transaction.aggregate([
+          { $match: match },
+          {
+            $group: {
+              _id: '$user',
+              totalCoins: { $sum: '$amount' },
+              completions: { $sum: 1 },
+              lastAt: { $max: '$createdAt' }
+            }
+          },
+          { $sort: { totalCoins: -1, lastAt: -1 } },
+          { $limit: 20 },
+          {
+            $lookup: {
+              from: 'users',
+              localField: '_id',
+              foreignField: '_id',
+              as: 'u'
+            }
+          },
+          { $unwind: { path: '$u', preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              _id: 0,
+              userId: '$_id',
+              totalCoins: 1,
+              completions: 1,
+              lastAt: 1,
+              name: {
+                $trim: {
+                  input: {
+                    $concat: [{ $ifNull: ['$u.firstName', ''] }, ' ', { $ifNull: ['$u.lastName', ''] }]
+                  }
+                }
+              },
+              email: '$u.email'
+            }
+          }
+        ]),
+        Transaction.aggregate([
+          { $match: match },
+          { $group: { _id: '$metadata.correctAnswers', count: { $sum: 1 } } },
+          { $sort: { _id: 1 } }
+        ])
+      ]);
+
+    res.json({
+      success: true,
+      dateUtc: recipe.dateIso,
+      note:
+        'Recipe uses UTC date (same as the app). Player "today" for completion may follow the server timezone in user records; stats below are completions logged today in UTC.',
+      recipe: {
+        rounds: recipe.rounds,
+        totalTasks: recipe.totalTasks,
+        seed: recipe.seed
+      },
+      rewardRules: {
+        summary: `${DAILY_FIXED_COINS} base coins + up to ${DAILY_BONUS_COINS} bonus scaled by correct tasks (out of ${DAILY_TASKS}).`,
+        baseCoins: DAILY_FIXED_COINS,
+        bonusCoinsMax: DAILY_BONUS_COINS,
+        baseXp: DAILY_FIXED_XP,
+        bonusXpMax: DAILY_BONUS_XP,
+        tasks: DAILY_TASKS,
+        minCoinsIfCompleted: DAILY_FIXED_COINS,
+        maxCoinsIfCompleted: DAILY_FIXED_COINS + DAILY_BONUS_COINS
+      },
+      stats: {
+        completionsLogged: totalCompletions,
+        uniqueParticipants: distinctUsers.length,
+        totalCoinsPaid: coinsAgg[0]?.total || 0
+      },
+      correctAnswerBreakdown: correctBreakdown.map((row) => ({
+        correctAnswers: row._id == null ? null : row._id,
+        completions: row.count
+      })),
+      topParticipants
+    });
+  } catch (error) {
+    console.error('Daily challenge overview error:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
+/** UTC Monday 00:00 to next Monday 00:00 */
+function getUtcIsoWeekRange(ref = new Date()) {
+  const y = ref.getUTCFullYear();
+  const m = ref.getUTCMonth();
+  const d = ref.getUTCDate();
+  const day = new Date(Date.UTC(y, m, d)).getUTCDay(); // 0 Sun .. 6 Sat
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+  const start = new Date(Date.UTC(y, m, d - daysFromMonday, 0, 0, 0, 0));
+  const end = new Date(start);
+  end.setUTCDate(start.getUTCDate() + 7);
+  return { start, end };
+}
+
+/**
+ * Rolling automatic daily-challenge stats for current ISO week (UTC).
+ */
+router.get('/daily-challenge/weekly-summary', async (req, res) => {
+  try {
+    const { start, end } = getUtcIsoWeekRange();
+    const match = {
+      category: 'daily_challenge',
+      type: 'earn',
+      createdAt: { $gte: start, $lt: end }
+    };
+
+    const [totals, byDay, topParticipants] = await Promise.all([
+      Promise.all([
+        Transaction.countDocuments(match),
+        Transaction.distinct('user', match),
+        Transaction.aggregate([
+          { $match: match },
+          { $group: { _id: null, total: { $sum: '$amount' } } }
+        ])
+      ]).then(([completions, distinctUsers, coinsAgg]) => ({
+        completionsLogged: completions,
+        uniqueParticipants: distinctUsers.length,
+        totalCoinsPaid: coinsAgg[0]?.total || 0
+      })),
+      Transaction.aggregate([
+        { $match: match },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'UTC' } },
+            completions: { $sum: 1 },
+            coins: { $sum: '$amount' },
+            uniqueUsers: { $addToSet: '$user' }
+          }
+        },
+        { $sort: { _id: 1 } },
+        {
+          $project: {
+            date: '$_id',
+            completions: 1,
+            coins: 1,
+            uniqueParticipants: { $size: '$uniqueUsers' }
+          }
+        }
+      ]),
+      Transaction.aggregate([
+        { $match: match },
+        {
+          $group: {
+            _id: '$user',
+            totalCoins: { $sum: '$amount' },
+            completions: { $sum: 1 }
+          }
+        },
+        { $sort: { totalCoins: -1 } },
+        { $limit: 15 },
+        {
+          $lookup: {
+            from: 'users',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'u'
+          }
+        },
+        { $unwind: { path: '$u', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 0,
+            userId: '$_id',
+            totalCoins: 1,
+            completions: 1,
+            name: {
+              $trim: {
+                input: {
+                  $concat: [{ $ifNull: ['$u.firstName', ''] }, ' ', { $ifNull: ['$u.lastName', ''] }]
+                }
+              }
+            },
+            email: '$u.email'
+          }
+        }
+      ])
+    ]);
+
+    res.json({
+      success: true,
+      weekUtcStart: start.toISOString().slice(0, 10),
+      weekUtcEndExclusive: end.toISOString().slice(0, 10),
+      note: 'Week runs Monday–Sunday UTC. Same automatic 7-task daily challenge; one completion per user per UTC day.',
+      stats: totals,
+      byDay,
+      topParticipants
+    });
+  } catch (error) {
+    console.error('Weekly daily-challenge summary error:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
 // Get all challenges for admin
 router.get('/challenges', async (req, res) => {
   try {
@@ -62,22 +294,11 @@ router.get('/challenges', async (req, res) => {
   }
 });
 
-// Toggle challenge status
-router.put('/challenges/:id/toggle', async (req, res) => {
-  try {
-    const challenge = await Challenge.findById(req.params.id);
-    if (!challenge) {
-      return res.status(404).json({ error: 'Challenge not found' });
-    }
-
-    challenge.isActive = !challenge.isActive;
-    await challenge.save();
-
-    res.json({ success: true, challenge });
-  } catch (error) {
-    console.error('Error toggling challenge status:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
+// Toggle challenge status — disabled: admin UI is read-only / stats-only for challenges
+router.put('/challenges/:id/toggle', (req, res) => {
+  return res.status(403).json({
+    error: 'Managing challenges from the admin API is disabled. Challenges are automatic; use Admin → Challenges for stats.'
+  });
 });
 
 // Get all games for admin
@@ -126,23 +347,26 @@ router.get('/users', async (req, res) => {
   }
 });
 
-// Get user details
+// Get user details (admin) — no password; transactions loaded by query (User has no transactions ref)
 router.get('/users/:id', async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
       .select('-password')
-      .populate('badges', 'name icon description')
-      .populate({
-        path: 'transactions',
-        select: 'amount type description createdAt',
-        options: { sort: { createdAt: -1 }, limit: 10 }
-      });
+      .populate('badges', 'name icon description');
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json(user);
+    const recentTransactions = await Transaction.find({ user: req.params.id })
+      .select('amount type description category createdAt balanceAfter')
+      .sort({ createdAt: -1 })
+      .limit(25)
+      .lean();
+
+    const plain = user.toObject({ flattenMaps: true });
+    plain.recentTransactions = recentTransactions;
+    res.json(plain);
   } catch (error) {
     console.error('Error fetching user details:', error);
     res.status(500).json({ error: 'Server error' });
@@ -167,103 +391,27 @@ router.put('/users/:id/toggle', async (req, res) => {
   }
 });
 
-// Create new challenge
-router.post('/challenges', async (req, res) => {
-  try {
-    const {
-      title,
-      description,
-      gameId,
-      type,
-      requirements,
-      rewards,
-      startDate,
-      endDate,
-      color,
-      tags
-    } = req.body;
-
-    const challenge = new Challenge({
-      title,
-      description,
-      gameId,
-      type,
-      requirements,
-      rewards,
-      startDate,
-      endDate,
-      color,
-      tags,
-      createdBy: req.user._id
-    });
-
-    await challenge.save();
-    res.status(201).json(challenge);
-  } catch (error) {
-    console.error('Error creating challenge:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
+// Create new challenge — disabled (automatic daily challenge only in product)
+router.post('/challenges', (req, res) => {
+  return res.status(403).json({
+    error:
+      'Creating challenges from admin is disabled. The 7-task Daily Challenge is generated in code; use Admin → Challenges for daily/weekly stats.'
+  });
 });
 
-// Create new game
+// Create new game — disabled from product UI: games are coded templates; use seed scripts or DB tools if needed
 router.post('/games', async (req, res) => {
-  try {
-    const {
-      name,
-      slug,
-      description,
-      category,
-      difficulty,
-      type,
-      gameConfig,
-      rewards,
-      thumbnail,
-      icon,
-      color,
-      tags
-    } = req.body;
-
-    const game = new Game({
-      name,
-      slug,
-      description,
-      category,
-      difficulty,
-      type,
-      gameConfig,
-      rewards,
-      thumbnail,
-      icon,
-      color,
-      tags
-    });
-
-    await game.save();
-    res.status(201).json(game);
-  } catch (error) {
-    console.error('Error creating game:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
+  return res.status(400).json({
+    error:
+      'Creating games from the API is disabled. Embedded games are fixed modules; use Admin → Games to edit metadata (coins, timers, question count), or run backend seed scripts to add rows.'
+  });
 });
 
-// Update challenge
-router.put('/challenges/:id', async (req, res) => {
-  try {
-    const challenge = await Challenge.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    );
-
-    if (!challenge) {
-      return res.status(404).json({ error: 'Challenge not found' });
-    }
-
-    res.json(challenge);
-  } catch (error) {
-    console.error('Error updating challenge:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
+// Update challenge — disabled
+router.put('/challenges/:id', (req, res) => {
+  return res.status(403).json({
+    error: 'Updating challenges from admin is disabled. Use Admin → Challenges for automatic daily challenge statistics.'
+  });
 });
 
 // Update game
@@ -286,29 +434,27 @@ router.put('/games/:id', async (req, res) => {
   }
 });
 
-// Delete challenge
-router.delete('/challenges/:id', async (req, res) => {
-  try {
-    const challenge = await Challenge.findByIdAndDelete(req.params.id);
-    if (!challenge) {
-      return res.status(404).json({ error: 'Challenge not found' });
-    }
-
-    res.json({ success: true, message: 'Challenge deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting challenge:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
+// Delete challenge — disabled
+router.delete('/challenges/:id', (req, res) => {
+  return res.status(403).json({
+    error: 'Deleting challenges from admin is disabled. Legacy DB rows may still appear in apps until removed via database tools.'
+  });
 });
 
-// Delete game
+// Delete game — blocked for embedded templates (would break the app)
 router.delete('/games/:id', async (req, res) => {
   try {
-    const game = await Game.findByIdAndDelete(req.params.id);
+    const game = await Game.findById(req.params.id);
     if (!game) {
       return res.status(404).json({ error: 'Game not found' });
     }
-
+    if (game.type === 'embedded') {
+      return res.status(400).json({
+        error:
+          'Embedded games cannot be deleted. Turn the game off with the visibility toggle or edit its metadata instead.'
+      });
+    }
+    await Game.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: 'Game deleted successfully' });
   } catch (error) {
     console.error('Error deleting game:', error);

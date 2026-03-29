@@ -123,6 +123,26 @@ Wait until you see messages like “MongoDB connected” and “Compiled success
 
 ---
 
+## 6b. Create or fix the admin account (required for admin login)
+
+Admin login uses the same **Login** page as regular users. The admin user must exist in MongoDB with a known password.
+
+From the **backend** folder (PowerShell: use `;` instead of `&&`):
+
+```bash
+cd backend
+npm run create-admin
+```
+
+This **creates** `admin@vitacoin.com` or **resets** its password to `admin123` if it already exists.
+
+- **Email:** `admin@vitacoin.com`  
+- **Password:** `admin123`  
+
+Optional check: `npm run test-admin`
+
+---
+
 ## 7. Open the App
 
 In the browser go to:
@@ -140,6 +160,7 @@ In the browser go to:
 | **Port already in use** | Change `PORT` in **backend/.env** (e.g. to 5002) and use the same port in frontend `.env` if you set it. |
 | **MongoDB connection error** | Check `MONGODB_URI` in **backend/.env**. For Atlas: correct username, password, and cluster URL. |
 | **Frontend can’t reach API** | Ensure **backend** is running and `REACT_APP_API_URL` in **frontend/.env** matches the backend port. |
+| **Admin login: “Invalid credentials”** | Run `cd backend` then `npm run create-admin`. Use email **admin@vitacoin.com** (not the word “admin” alone) and password **admin123**. |
 | **Dependencies error** | From project root run: `cd backend && npm install`, then `cd ../frontend && npm install`. |
 | **Wrong branch** | Run `git branch -a` and then `git checkout mypj` (or the branch you need). |
 

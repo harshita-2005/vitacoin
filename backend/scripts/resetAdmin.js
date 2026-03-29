@@ -1,6 +1,7 @@
+const path = require('path');
 const mongoose = require('mongoose');
 const User = require('../models/User');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const resetAdminUser = async () => {
   try {

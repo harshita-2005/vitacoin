@@ -49,7 +49,7 @@ const Layout = ({ children }) => {
   const navigate = useNavigate();
 
   const navigation = user?.role === 'admin' ? [
-    { name: 'Admin Dashboard', href: '/admin', icon: FiTrendingUp },
+    { name: 'Administration', href: '/admin', icon: FiTrendingUp },
     { name: 'Challenges', href: '/admin/challenges', icon: FiTarget },
     { name: 'Games', href: '/admin/games', icon: FiPlay },
     { name: 'Users', href: '/admin/users', icon: FiUsers },
@@ -71,7 +71,12 @@ const Layout = ({ children }) => {
     navigate('/login');
   };
 
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path) => {
+    if (user?.role === 'admin' && path === '/admin') {
+      return location.pathname === '/admin' || location.pathname === '/admin/';
+    }
+    return location.pathname === path;
+  };
 
   return (
     <div className="flex h-screen bg-warm-background">

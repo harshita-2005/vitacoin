@@ -1,7 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 
-const MathQuiz = ({ onComplete, onPause, isPaused, timeLimit, difficulty = 'easy', onScoreUpdate, resetKey = 0, dailyChallengeTasks }) => {
+const MathQuiz = ({
+  onComplete,
+  onPause,
+  isPaused,
+  timeLimit,
+  difficulty = 'easy',
+  onScoreUpdate,
+  resetKey = 0,
+  dailyChallengeTasks,
+  questionCountOverride
+}) => {
   const [currentQuestion, setCurrentQuestion] = useState(null);
   const [userAnswer, setUserAnswer] = useState('');
   const [questionCount, setQuestionCount] = useState(0);
@@ -26,9 +36,11 @@ const MathQuiz = ({ onComplete, onPause, isPaused, timeLimit, difficulty = 'easy
       hard: { maxNumber: 100, operators: ['+', '-', '*', '/'], totalQuestions: 20, perQuestionTime: 10 }
     };
     const c = configs[difficulty] || configs.easy;
-    const totalQuestions = dailyChallengeTasks ?? c.totalQuestions;
+    const adminQ =
+      typeof questionCountOverride === 'number' && questionCountOverride > 0 ? questionCountOverride : null;
+    const totalQuestions = dailyChallengeTasks ?? adminQ ?? c.totalQuestions;
     return { ...c, totalQuestions };
-  }, [difficulty, dailyChallengeTasks]);
+  }, [difficulty, dailyChallengeTasks, questionCountOverride]);
   
   const onCompleteRef = useRef(onComplete);
   const onScoreUpdateRef = useRef(onScoreUpdate);

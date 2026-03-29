@@ -27,7 +27,8 @@ cd backend
 npm run create-admin
 ```
 
-This will create an admin user with:
+This will create an admin user, or **reset password and role** if `admin@vitacoin.com` already exists (fixes “Invalid credentials” after a bad password or role change):
+
 - Email: `admin@vitacoin.com`
 - Password: `admin123`
 - Role: `admin`
@@ -98,7 +99,7 @@ Regular users will see:
 - `PUT /api/admin/games/:id/toggle` - Toggle game status
 - `GET /api/admin/users` - Get all users
 - `POST /api/admin/challenges` - Create new challenge
-- `POST /api/admin/games` - Add new game
+- `POST /api/admin/games` - Disabled (games are coded templates; edit metadata via `PUT /api/admin/games/:id`)
 
 ### User Routes (Protected)
 - `GET /api/games/active` - Get active games for users

@@ -135,11 +135,16 @@ router.post('/play', protect, async (req, res) => {
       time || 0,
       accuracy || 0,
       correctAnswers || 0,
+      gameDoc,
       gameDisplayName
     );
 
     if (!result.success) {
-      return res.status(400).json(result);
+      return res.status(400).json({
+        success: false,
+        error: result.errors?.[0] || result.error || 'Could not process game completion',
+        errors: result.errors
+      });
     }
 
     // Update game statistics

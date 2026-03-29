@@ -214,15 +214,16 @@ function App() {
             </ProtectedRoute>
           } 
         />
-        <Route 
-          path="/admin" 
+        {/* /admin/* keeps one Layout + AdminDashboard instance; sidebar URLs like /admin/games sync the active tab */}
+        <Route
+          path="/admin/*"
           element={
             <AdminRoute>
               <Layout>
                 <AdminDashboard />
               </Layout>
             </AdminRoute>
-          } 
+          }
         />
 
         {/* 404 Route */}

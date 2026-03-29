@@ -198,8 +198,14 @@ const PlayGames = () => {
       }
     } catch (error) {
       console.error('Error submitting score:', error);
-      const errorMessage = error.response?.data?.error || error.response?.data?.errors?.[0] || 'Failed to submit score';
-      toast.error(errorMessage);
+      const d = error.response?.data;
+      const msg =
+        (typeof d?.error === 'string' && d.error) ||
+        (Array.isArray(d?.errors) && d.errors[0]) ||
+        (typeof d?.message === 'string' && d.message) ||
+        error.message ||
+        'Failed to submit score';
+      toast.error(msg);
     }
   };
 
@@ -292,6 +298,7 @@ const PlayGames = () => {
           </div>
           <LevelSelector
             gameSlug={selectedGame.slug || selectedGame._id}
+            game={selectedGame}
             onLevelSelect={handleLevelSelected}
             selectedLevel={selectedDifficulty}
           />

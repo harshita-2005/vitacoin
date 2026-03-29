@@ -2,12 +2,38 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FiUsers, FiEye, FiEdit, FiTrash2, FiToggleLeft, FiToggleRight, FiAward, FiTrendingUp } from 'react-icons/fi';
 import axios from 'axios';
+import toast from 'react-hot-toast';
+
+/** Parse dailyAttempts map keys like `math-quiz_easy` for admin UI */
+function parseDailyAttemptEntries(raw) {
+  if (!raw || typeof raw !== 'object') return [];
+  return Object.entries(raw).map(([key, count]) => {
+    const lastU = key.lastIndexOf('_');
+    const game = lastU > 0 ? key.slice(0, lastU) : key;
+    const difficulty = lastU > 0 ? key.slice(lastU + 1) : '';
+    return {
+      key,
+      game,
+      difficulty,
+      count: Number(count) || 0
+    };
+  });
+}
+
+function difficultyPillClass(diff) {
+  const d = String(diff).toLowerCase();
+  if (d === 'easy') return 'bg-emerald-50 text-emerald-900 ring-emerald-200/70';
+  if (d === 'medium') return 'bg-amber-50 text-amber-950 ring-amber-200/70';
+  if (d === 'hard') return 'bg-red-50 text-red-900 ring-red-200/60';
+  return 'bg-warm-container text-warm-text ring-warm-border/40';
+}
 
 const AdminUsers = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -54,15 +80,27 @@ const AdminUsers = () => {
   };
 
   const viewUserDetails = async (userId) => {
+    setShowUserModal(true);
+    setSelectedUser(null);
+    setProfileLoading(true);
     try {
       const response = await axios.get(`/api/admin/users/${userId}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       setSelectedUser(response.data);
-      setShowUserModal(true);
     } catch (error) {
       console.error('Error fetching user details:', error);
+      toast.error(error.response?.data?.error || 'Could not load user profile');
+      setShowUserModal(false);
+    } finally {
+      setProfileLoading(false);
     }
+  };
+
+  const closeProfileModal = () => {
+    setShowUserModal(false);
+    setSelectedUser(null);
+    setProfileLoading(false);
   };
 
   const filteredUsers = users.filter(user => {
@@ -89,12 +127,15 @@ const AdminUsers = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
-        <div className="flex items-center space-x-4">
-          <div className="text-sm text-gray-600">
-            Total Users: <span className="font-semibold">{users.length}</span>
-          </div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
+          <p className="text-gray-600 mt-1 max-w-3xl">
+            View and manage user accounts, track activity, and monitor reward distribution.
+          </p>
+        </div>
+        <div className="text-sm text-gray-600 shrink-0">
+          Registered: <span className="font-semibold">{users.length}</span>
         </div>
       </div>
 
@@ -167,13 +208,13 @@ const AdminUsers = () => {
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Coins
+                  Total Coins Earned
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Experience
+                  Games Played
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                  Account Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Joined
@@ -219,15 +260,15 @@ const AdminUsers = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900 font-semibold">
-                      {user.coinBalance || 0}
+                      {user.totalEarned ?? user.coinBalance ?? 0}
                     </div>
-                    <div className="text-sm text-gray-500">coins</div>
+                    <div className="text-sm text-gray-500">lifetime</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900 font-semibold">
-                      {user.experience || 0}
+                      {user.tasksCompleted ?? 0}
                     </div>
-                    <div className="text-sm text-gray-500">XP</div>
+                    <div className="text-sm text-gray-500">tasks completed</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -246,6 +287,8 @@ const AdminUsers = () => {
                         whileTap={{ scale: 0.95 }}
                         onClick={() => viewUserDetails(user._id)}
                         className="text-blue-600 hover:text-blue-900 p-1"
+                        title="View profile"
+                        aria-label="View profile"
                       >
                         <FiEye className="w-4 h-4" />
                       </motion.button>
@@ -259,6 +302,8 @@ const AdminUsers = () => {
                             ? 'text-orange-600 hover:text-orange-900' 
                             : 'text-green-600 hover:text-green-900'
                         }`}
+                        title={user.isActive ? 'Disable user' : 'Enable user'}
+                        aria-label={user.isActive ? 'Disable user' : 'Enable user'}
                       >
                         {user.isActive ? <FiToggleLeft className="w-4 h-4" /> : <FiToggleRight className="w-4 h-4" />}
                       </motion.button>
@@ -268,6 +313,8 @@ const AdminUsers = () => {
                         whileTap={{ scale: 0.95 }}
                         onClick={() => handleDeleteUser(user._id)}
                         className="text-red-600 hover:text-red-900 p-1"
+                        title="Remove account"
+                        aria-label="Remove account"
                       >
                         <FiTrash2 className="w-4 h-4" />
                       </motion.button>
@@ -280,137 +327,368 @@ const AdminUsers = () => {
         </div>
       </div>
 
-      {/* User Details Modal */}
-      {showUserModal && selectedUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      {/* User Details Modal — warm coffee palette, matches Admin Games */}
+      {showUserModal && (
+        <div
+          className="fixed inset-0 bg-warm-text/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="admin-user-profile-title"
+        >
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-xl shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+            initial={{ opacity: 0, scale: 0.96, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-warm-card rounded-2xl shadow-xl border border-warm-border/90 max-w-4xl w-full max-h-[90vh] overflow-y-auto ring-1 ring-warm-border/30"
           >
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-gray-900">User Details</h2>
-                <button
-                  onClick={() => {
-                    setShowUserModal(false);
-                    setSelectedUser(null);
-                  }}
-                  className="text-gray-400 hover:text-gray-600"
+            <div className="p-5 sm:p-6 border-b border-warm-border/70 sticky top-0 bg-warm-card/95 backdrop-blur-sm z-10 flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <h2
+                  id="admin-user-profile-title"
+                  className="text-xl sm:text-2xl font-bold text-warm-text tracking-tight"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                  User profile
+                </h2>
+                <p className="text-sm font-semibold text-warm-textSecondary mt-1.5 leading-snug">
+                  Admin view — passwords and secrets are <span className="text-warm-primary">never</span> included.
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={closeProfileModal}
+                className="shrink-0 text-warm-textSecondary hover:text-warm-text p-2 rounded-xl hover:bg-warm-container/80 ring-1 ring-transparent hover:ring-warm-border/50 transition-colors"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
 
-            <div className="p-6 space-y-6">
-              {/* User Basic Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
-                  <div className="space-y-3">
-                    <div>
-                      <span className="text-sm font-medium text-gray-500">Full Name:</span>
-                      <p className="text-gray-900">{selectedUser.firstName} {selectedUser.lastName}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium text-gray-500">Username:</span>
-                      <p className="text-gray-900">@{selectedUser.username}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium text-gray-500">Email:</span>
-                      <p className="text-gray-900">{selectedUser.email}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium text-gray-500">Role:</span>
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ml-2 ${
-                        selectedUser.role === 'admin' ? 'bg-red-100 text-red-800' :
-                        selectedUser.role === 'moderator' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-blue-100 text-blue-800'
-                      }`}>
-                        {selectedUser.role}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium text-gray-500">Status:</span>
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ml-2 ${
-                        selectedUser.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                        {selectedUser.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium text-gray-500">Joined:</span>
-                      <p className="text-gray-900">{new Date(selectedUser.createdAt).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Statistics</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-primary-600">{selectedUser.coinBalance || 0}</div>
-                      <div className="text-sm text-gray-500">Total Coins</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-green-600">{selectedUser.experience || 0}</div>
-                      <div className="text-sm text-gray-500">Experience</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-blue-600">{selectedUser.badges?.length || 0}</div>
-                      <div className="text-sm text-gray-500">Badges</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-purple-600">{selectedUser.level || 1}</div>
-                      <div className="text-sm text-gray-500">Level</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Badges */}
-              {selectedUser.badges && selectedUser.badges.length > 0 && (
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Badges</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {selectedUser.badges.map((badge) => (
-                      <div key={badge._id} className="text-center">
-                        <div className="w-16 h-16 mx-auto bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center text-2xl mb-2">
-                          {badge.icon}
-                        </div>
-                        <div className="text-sm font-medium text-gray-900">{badge.name}</div>
-                        <div className="text-xs text-gray-500">{badge.description}</div>
-                      </div>
-                    ))}
-                  </div>
+            <div className="p-5 sm:p-6 bg-warm-background/50">
+              {profileLoading && (
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                  <div className="animate-spin rounded-full h-10 w-10 border-2 border-warm-primary border-t-transparent" />
+                  <p className="text-sm font-bold text-warm-textSecondary">Loading profile…</p>
                 </div>
               )}
 
-              {/* Recent Transactions */}
-              {selectedUser.transactions && selectedUser.transactions.length > 0 && (
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Transactions</h3>
-                  <div className="space-y-2">
-                    {selectedUser.transactions.slice(0, 5).map((transaction) => (
-                      <div key={transaction._id} className="flex items-center justify-between p-3 bg-white rounded-lg">
-                        <div>
-                          <div className="font-medium text-gray-900">{transaction.description}</div>
-                          <div className="text-sm text-gray-500">{transaction.type}</div>
+              {!profileLoading && selectedUser && (
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+                    {/* Account */}
+                    <section className="lg:col-span-5 rounded-2xl bg-warm-container/45 ring-1 ring-warm-border/50 p-4 sm:p-5">
+                      <h3 className="text-[11px] font-bold uppercase tracking-widest text-warm-textSecondary mb-4">
+                        Account
+                      </h3>
+                      <dl className="space-y-3.5">
+                        {[
+                          ['Full name', `${selectedUser.firstName} ${selectedUser.lastName}`],
+                          ['Username', `@${selectedUser.username}`],
+                          ['Email', selectedUser.email]
+                        ].map(([label, val]) => (
+                          <div key={label} className="grid grid-cols-1 sm:grid-cols-[7.5rem_1fr] gap-0.5 sm:gap-3 sm:items-baseline">
+                            <dt className="text-[11px] font-bold uppercase tracking-wide text-warm-textSecondary">
+                              {label}
+                            </dt>
+                            <dd className="text-sm font-bold text-warm-text break-all leading-snug">{val}</dd>
+                          </div>
+                        ))}
+                        <div className="grid grid-cols-1 sm:grid-cols-[7.5rem_1fr] gap-2 sm:gap-3 sm:items-center">
+                          <dt className="text-[11px] font-bold uppercase tracking-wide text-warm-textSecondary">
+                            Role
+                          </dt>
+                          <dd>
+                            <span
+                              className={`inline-flex px-2.5 py-1 text-xs font-bold rounded-full ring-1 ${
+                                selectedUser.role === 'admin'
+                                  ? 'bg-red-50 text-red-900 ring-red-200/80'
+                                  : selectedUser.role === 'moderator'
+                                    ? 'bg-amber-50 text-amber-950 ring-amber-200/70'
+                                    : 'bg-warm-card text-warm-primary ring-warm-border/60'
+                              }`}
+                            >
+                              {selectedUser.role}
+                            </span>
+                          </dd>
                         </div>
-                        <div className={`font-semibold ${
-                          transaction.amount > 0 ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          {transaction.amount > 0 ? '+' : ''}{transaction.amount} coins
+                        <div className="grid grid-cols-1 sm:grid-cols-[7.5rem_1fr] gap-2 sm:gap-3 sm:items-center">
+                          <dt className="text-[11px] font-bold uppercase tracking-wide text-warm-textSecondary">
+                            Status
+                          </dt>
+                          <dd>
+                            <span
+                              className={`inline-flex px-2.5 py-1 text-xs font-bold rounded-full ring-1 ${
+                                selectedUser.isActive
+                                  ? 'bg-emerald-50 text-emerald-900 ring-emerald-200/70'
+                                  : 'bg-red-50 text-red-900 ring-red-200/70'
+                              }`}
+                            >
+                              {selectedUser.isActive ? 'Active' : 'Inactive'}
+                            </span>
+                          </dd>
                         </div>
-                        <div className="text-sm text-gray-500">
-                          {new Date(transaction.createdAt).toLocaleDateString()}
+                        {[
+                          [
+                            'Joined',
+                            selectedUser.createdAt
+                              ? new Date(selectedUser.createdAt).toLocaleString()
+                              : '—'
+                          ],
+                          [
+                            'Last login',
+                            selectedUser.lastLogin
+                              ? new Date(selectedUser.lastLogin).toLocaleString()
+                              : '—'
+                          ]
+                        ].map(([label, val]) => (
+                          <div
+                            key={label}
+                            className="grid grid-cols-1 sm:grid-cols-[7.5rem_1fr] gap-0.5 sm:gap-3 sm:items-baseline"
+                          >
+                            <dt className="text-[11px] font-bold uppercase tracking-wide text-warm-textSecondary">
+                              {label}
+                            </dt>
+                            <dd className="text-sm font-bold text-warm-text tabular-nums">{val}</dd>
+                          </div>
+                        ))}
+                        {selectedUser.profilePicture && (
+                          <div className="pt-1 border-t border-warm-border/40">
+                            <dt className="text-[11px] font-bold uppercase tracking-wide text-warm-textSecondary mb-1">
+                              Avatar URL
+                            </dt>
+                            <dd className="text-xs font-semibold text-warm-text break-all">{selectedUser.profilePicture}</dd>
+                          </div>
+                        )}
+                      </dl>
+                    </section>
+
+                    {/* Coins & progression — compact stat tiles */}
+                    <section className="lg:col-span-7 rounded-2xl bg-warm-container/45 ring-1 ring-warm-border/50 p-4 sm:p-5">
+                      <h3 className="text-[11px] font-bold uppercase tracking-widest text-warm-textSecondary mb-3">
+                        Coins & progression
+                      </h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div className="rounded-xl bg-warm-card px-2 py-2 ring-1 ring-warm-border/45 text-center">
+                          <div className="text-lg sm:text-xl font-bold text-coinGold tabular-nums leading-none">
+                            {selectedUser.coinBalance ?? 0}
+                          </div>
+                          <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wide text-warm-textSecondary mt-1.5">
+                            Balance
+                          </div>
+                        </div>
+                        <div className="rounded-xl bg-warm-card px-2 py-2 ring-1 ring-warm-border/45 text-center">
+                          <div className="text-lg sm:text-xl font-bold text-warm-primary tabular-nums leading-none">
+                            {selectedUser.totalEarned ?? 0}
+                          </div>
+                          <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wide text-warm-textSecondary mt-1.5">
+                            Total earned
+                          </div>
+                        </div>
+                        <div className="rounded-xl bg-warm-card px-2 py-2 ring-1 ring-warm-border/45 text-center">
+                          <div className="text-lg sm:text-xl font-bold text-warm-primary tabular-nums leading-none">
+                            {selectedUser.experiencePoints ?? 0}
+                          </div>
+                          <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wide text-warm-textSecondary mt-1.5">
+                            XP
+                          </div>
+                        </div>
+                        <div className="rounded-xl bg-warm-card px-2 py-2 ring-1 ring-warm-border/45 text-center">
+                          <div className="text-lg sm:text-xl font-bold text-warm-primary tabular-nums leading-none">
+                            {selectedUser.userLevel ?? 1}
+                          </div>
+                          <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wide text-warm-textSecondary mt-1.5">
+                            Level
+                          </div>
                         </div>
                       </div>
-                    ))}
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div className="rounded-xl bg-warm-secondary/25 px-3 py-2 ring-1 ring-warm-border/40">
+                          <div className="text-base font-bold text-warm-text tabular-nums">
+                            {selectedUser.tasksCompleted ?? 0}
+                          </div>
+                          <div className="text-[10px] font-bold uppercase text-warm-textSecondary mt-0.5">
+                            Tasks done
+                          </div>
+                        </div>
+                        <div className="rounded-xl bg-warm-secondary/25 px-3 py-2 ring-1 ring-warm-border/40">
+                          <div className="text-base font-bold text-warm-text tabular-nums">
+                            {selectedUser.loginStreak ?? 0}
+                          </div>
+                          <div className="text-[10px] font-bold uppercase text-warm-textSecondary mt-0.5">
+                            Login streak
+                          </div>
+                        </div>
+                      </div>
+                    </section>
                   </div>
+
+                  {/* Game progress */}
+                  {selectedUser.gameProgress && Object.keys(selectedUser.gameProgress).length > 0 && (
+                    <section className="rounded-2xl bg-warm-container/45 ring-1 ring-warm-border/50 p-4 sm:p-5">
+                      <h3 className="text-[11px] font-bold uppercase tracking-widest text-warm-textSecondary mb-3">
+                        Game progress
+                      </h3>
+                      <div className="overflow-x-auto rounded-xl ring-1 ring-warm-border/40 bg-warm-card">
+                        <table className="min-w-full text-sm">
+                          <thead>
+                            <tr className="text-left bg-warm-container/60 border-b border-warm-border/60">
+                              {['Game', 'Level', 'Best', 'E / M / H', 'Plays'].map((h) => (
+                                <th
+                                  key={h}
+                                  className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wide text-warm-textSecondary"
+                                >
+                                  {h}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-warm-border/40">
+                            {Object.entries(selectedUser.gameProgress).map(([slug, prog]) => (
+                              <tr key={slug} className="text-warm-text">
+                                <td className="px-3 py-2 font-bold text-xs sm:text-sm">{slug}</td>
+                                <td className="px-3 py-2 font-semibold tabular-nums">{prog?.level ?? '—'}</td>
+                                <td className="px-3 py-2 font-semibold tabular-nums">{prog?.bestScore ?? '—'}</td>
+                                <td className="px-3 py-2 tabular-nums text-xs font-semibold text-warm-textSecondary">
+                                  {prog?.scores
+                                    ? `${prog.scores.easy ?? 0} / ${prog.scores.medium ?? 0} / ${prog.scores.hard ?? 0}`
+                                    : '—'}
+                                </td>
+                                <td className="px-3 py-2 font-bold tabular-nums">{prog?.timesPlayed ?? 0}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  )}
+
+                  {/* Daily attempts — visual chips */}
+                  {selectedUser.dailyAttempts && Object.keys(selectedUser.dailyAttempts).length > 0 && (
+                    <section className="rounded-2xl bg-warm-container/45 ring-1 ring-warm-border/50 p-4 sm:p-5">
+                      <h3 className="text-[11px] font-bold uppercase tracking-widest text-warm-textSecondary mb-1">
+                        Today&apos;s attempt counts
+                      </h3>
+                      <p className="text-xs font-semibold text-warm-textSecondary/90 mb-3">
+                        Per game and difficulty (resets daily).
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {parseDailyAttemptEntries(selectedUser.dailyAttempts).map((row) => (
+                          <div
+                            key={row.key}
+                            className="inline-flex flex-wrap items-center gap-2 rounded-xl bg-warm-card px-3 py-2 ring-1 ring-warm-border/50"
+                          >
+                            <span className="text-xs font-bold text-warm-text">{row.game}</span>
+                            {row.difficulty && (
+                              <span
+                                className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ring-1 ${difficultyPillClass(row.difficulty)}`}
+                              >
+                                {row.difficulty}
+                              </span>
+                            )}
+                            <span className="text-sm font-bold tabular-nums text-warm-primary">{row.count}×</span>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+
+                  {(selectedUser.completedPuzzles?.length > 0 || selectedUser.completedMcqs?.length > 0) && (
+                    <section className="rounded-2xl bg-warm-container/45 ring-1 ring-warm-border/50 p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="rounded-xl bg-warm-card/80 p-3 ring-1 ring-warm-border/40">
+                        <h4 className="text-[11px] font-bold uppercase tracking-wide text-warm-textSecondary mb-1">
+                          Interview puzzles
+                        </h4>
+                        <p className="text-2xl font-bold text-warm-primary tabular-nums">
+                          {selectedUser.completedPuzzles?.length ?? 0}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-warm-card/80 p-3 ring-1 ring-warm-border/40">
+                        <h4 className="text-[11px] font-bold uppercase tracking-wide text-warm-textSecondary mb-1">
+                          CS MCQ completed
+                        </h4>
+                        <p className="text-2xl font-bold text-warm-primary tabular-nums">
+                          {selectedUser.completedMcqs?.length ?? 0}
+                        </p>
+                      </div>
+                    </section>
+                  )}
+
+                  {Array.isArray(selectedUser.badges) && selectedUser.badges.length > 0 && (
+                    <section className="rounded-2xl bg-warm-container/45 ring-1 ring-warm-border/50 p-4 sm:p-5">
+                      <h3 className="text-[11px] font-bold uppercase tracking-widest text-warm-textSecondary mb-4">
+                        Badges
+                      </h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {selectedUser.badges.map((badge) => {
+                          const id = badge?._id ?? badge;
+                          const isObj = badge && typeof badge === 'object';
+                          return (
+                            <div
+                              key={String(id)}
+                              className="text-center rounded-xl bg-warm-card p-3 ring-1 ring-warm-border/45"
+                            >
+                              <div className="w-14 h-14 mx-auto bg-gradient-to-br from-coinGold/90 to-warm-primary rounded-2xl flex items-center justify-center text-2xl mb-2 ring-1 ring-warm-border/30">
+                                {isObj ? badge.icon || '🏅' : '?'}
+                              </div>
+                              <div className="text-xs font-bold text-warm-text leading-tight">
+                                {isObj ? badge.name || 'Badge' : `ID…${String(badge).slice(0, 6)}`}
+                              </div>
+                              {isObj && badge.description && (
+                                <div className="text-[10px] font-semibold text-warm-textSecondary mt-1 line-clamp-2">
+                                  {badge.description}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  )}
+
+                  <section className="rounded-2xl bg-warm-container/45 ring-1 ring-warm-border/50 p-4 sm:p-5">
+                    <h3 className="text-[11px] font-bold uppercase tracking-widest text-warm-textSecondary mb-3">
+                      Recent transactions
+                    </h3>
+                    {(!selectedUser.recentTransactions || selectedUser.recentTransactions.length === 0) && (
+                      <p className="text-sm font-bold text-warm-textSecondary">No transactions yet.</p>
+                    )}
+                    {selectedUser.recentTransactions && selectedUser.recentTransactions.length > 0 && (
+                      <ul className="space-y-2">
+                        {selectedUser.recentTransactions.map((tx) => (
+                          <li
+                            key={tx._id}
+                            className="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-3 items-start sm:items-center p-3 rounded-xl bg-warm-card ring-1 ring-warm-border/45"
+                          >
+                            <div className="sm:col-span-6 min-w-0">
+                              <div className="font-bold text-warm-text text-sm leading-snug">{tx.description}</div>
+                              <div className="text-[11px] font-bold text-warm-textSecondary mt-1 uppercase tracking-wide">
+                                {tx.type}
+                                {tx.category ? ` · ${tx.category}` : ''}
+                              </div>
+                            </div>
+                            <div
+                              className={`sm:col-span-3 font-bold tabular-nums text-base ${
+                                tx.amount > 0 ? 'text-emerald-700' : 'text-red-700'
+                              }`}
+                            >
+                              {tx.amount > 0 ? '+' : ''}
+                              {tx.amount} coins
+                            </div>
+                            <div className="sm:col-span-3 text-xs sm:text-sm">
+                              <div className="font-bold text-warm-text tabular-nums">
+                                {tx.createdAt ? new Date(tx.createdAt).toLocaleString() : '—'}
+                              </div>
+                              {tx.balanceAfter != null && (
+                                <div className="text-[11px] font-bold text-warm-textSecondary mt-1">
+                                  Balance after: <span className="text-warm-text">{tx.balanceAfter}</span>
+                                </div>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
                 </div>
               )}
             </div>

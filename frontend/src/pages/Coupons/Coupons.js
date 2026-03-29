@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { FiGift, FiShoppingBag, FiCheckCircle, FiAlertCircle, FiCopy, FiDollarSign } from 'react-icons/fi';
 import axios from 'axios';
@@ -71,32 +71,130 @@ const AVAILABLE_COUPONS = [
   }
 ];
 
+/** Parse "₹50" → 50 for scaling reward with coin cost */
+function parseBaseRupees(valueStr) {
+  const m = String(valueStr).match(/₹\s*(\d+)/);
+  return m ? Number(m[1]) : 0;
+}
+
+/** Must match backend COUPON_PRICE_STEP in routes/wallet.js */
+const COUPON_PRICE_STEP = 50;
+
 const Coupons = () => {
-  const [coupons, setCoupons] = useState([]);
+  const [redemptionCounts, setRedemptionCounts] = useState({});
   const [userBalance, setUserBalance] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [redeemingCouponId, setRedeemingCouponId] = useState(null);
   const [redeemedCoupon, setRedeemedCoupon] = useState(null);
   const [error, setError] = useState(null);
   const [copySuccess, setCopySuccess] = useState(false);
-  const { user, updateUser } = useAuth();
+  const [demoTopupLoading, setDemoTopupLoading] = useState(false);
+  const { user, token, loading: authLoading, updateUser } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchUserBalance();
-    setCoupons(AVAILABLE_COUPONS);
-    setLoading(false);
-  }, []);
+  /** Show “add demo coins” only in dev, or when REACT_APP_ENABLE_COUPON_DEMO=true (e.g. staging demo). */
+  const showCouponDemoTools =
+    process.env.NODE_ENV === 'development' ||
+    process.env.REACT_APP_ENABLE_COUPON_DEMO === 'true';
 
-  const fetchUserBalance = async () => {
-    try {
-      const response = await axios.get('/api/wallet/balance');
-      setUserBalance(response.data.balance);
-    } catch (error) {
-      console.error('Error fetching user balance:', error);
-      setError('Failed to fetch wallet balance');
+  const authHeader = useCallback(() => {
+    const t = token || localStorage.getItem('token');
+    return t ? { Authorization: `Bearer ${t}` } : {};
+  }, [token]);
+
+  const fetchUserBalance = useCallback(async () => {
+    const t = token || localStorage.getItem('token');
+    if (!t) {
+      setUserBalance(0);
+      setRedemptionCounts({});
+      setError(null);
+      return;
     }
-  };
+    try {
+      const response = await axios.get('/api/wallet/balance', {
+        headers: { Authorization: `Bearer ${t}` }
+      });
+      const bal = response.data?.balance;
+      setUserBalance(typeof bal === 'number' ? bal : 0);
+      if (response.data?.couponRedemptionCounts && typeof response.data.couponRedemptionCounts === 'object') {
+        setRedemptionCounts(response.data.couponRedemptionCounts);
+      }
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching user balance:', err);
+      const msg = err.response?.data?.error || err.message;
+      // Auth runs /api/auth/verify first — use profile balance if wallet call fails (race or 401)
+      if (user != null && typeof user.coinBalance === 'number') {
+        setUserBalance(user.coinBalance);
+        if (user.couponRedemptionCounts && typeof user.couponRedemptionCounts === 'object') {
+          setRedemptionCounts(user.couponRedemptionCounts);
+        }
+        setError(null);
+      } else {
+        setError(msg || 'Failed to fetch wallet balance');
+      }
+    }
+  }, [token, user]);
+
+  const coupons = useMemo(() => {
+    return AVAILABLE_COUPONS.map((c) => {
+      const n = Number(redemptionCounts[String(c.id)] ?? redemptionCounts[c.id] ?? 0) || 0;
+      const prior = Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+      const baseRupees = parseBaseRupees(c.value);
+      const currentCost = c.cost + prior * COUPON_PRICE_STEP;
+      // Same coins-per-rupee as first redemption: reward grows with cost
+      const scaledRupees =
+        baseRupees > 0 && c.cost > 0
+          ? Math.max(1, Math.round((baseRupees * currentCost) / c.cost))
+          : baseRupees;
+      const value = `₹${scaledRupees}`;
+      const description = `Get ${value} off on ${c.name}`;
+      return {
+        ...c,
+        baseCost: c.cost,
+        cost: currentCost,
+        value,
+        description
+      };
+    });
+  }, [redemptionCounts]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (user != null && typeof user.coinBalance === 'number') {
+      setUserBalance(user.coinBalance);
+    }
+    if (user?.couponRedemptionCounts && typeof user.couponRedemptionCounts === 'object') {
+      setRedemptionCounts((prev) => ({ ...prev, ...user.couponRedemptionCounts }));
+    }
+    fetchUserBalance();
+  }, [authLoading, user, fetchUserBalance]);
+
+  const handleDemoTopup = useCallback(async () => {
+    setDemoTopupLoading(true);
+    setError(null);
+    try {
+      const response = await axios.post(
+        '/api/wallet/demo-topup',
+        { amount: 600 },
+        { headers: authHeader() }
+      );
+      const next = response.data?.newBalance;
+      if (typeof next === 'number') {
+        setUserBalance(next);
+        if (updateUser && user) {
+          updateUser({ ...user, coinBalance: next });
+        }
+      }
+    } catch (err) {
+      console.error('Demo top-up failed:', err);
+      setError(
+        err.response?.data?.error ||
+          'Demo top-up failed. Run backend with NODE_ENV=development or set ALLOW_DEMO_WALLET_TOPUP=true.'
+      );
+    } finally {
+      setDemoTopupLoading(false);
+    }
+  }, [authHeader, updateUser, user]);
 
   const handleRedeem = async (coupon) => {
     if (userBalance < coupon.cost) {
@@ -108,30 +206,43 @@ const Coupons = () => {
     setError(null);
 
     try {
-      const response = await axios.post('/api/wallet/spend', {
-        amount: coupon.cost,
-        description: `Redeemed ${coupon.name} coupon worth ${coupon.value}`,
-        category: 'coupon_redemption'
-      });
+      const response = await axios.post(
+        '/api/wallet/spend',
+        {
+          amount: coupon.cost,
+          description: `Redeemed ${coupon.name} coupon worth ${coupon.value}`,
+          category: 'coupon_redemption',
+          couponId: coupon.id
+        },
+        { headers: authHeader() }
+      );
 
       // Update local state
       setUserBalance(response.data.newBalance);
+      if (response.data.couponRedemptionCounts) {
+        setRedemptionCounts(response.data.couponRedemptionCounts);
+      }
       setRedeemedCoupon({
         ...coupon,
+        paidCoins: coupon.cost,
         transactionId: response.data.transaction._id,
         redeemedAt: new Date().toISOString()
       });
       
       // Update user context
       if (updateUser) {
-        updateUser({ ...user, coinBalance: response.data.newBalance });
+        updateUser({
+          ...user,
+          coinBalance: response.data.newBalance,
+          couponRedemptionCounts: response.data.couponRedemptionCounts || user?.couponRedemptionCounts
+        });
       }
-
-      // Remove the redeemed coupon from the list
-      setCoupons(prevCoupons => prevCoupons.filter(c => c.id !== coupon.id));
 
     } catch (error) {
       console.error('Error redeeming coupon:', error);
+      if (error.response?.status === 400 && error.response?.data?.expectedAmount != null) {
+        fetchUserBalance();
+      }
       setError(error.response?.data?.error || 'Failed to redeem coupon');
     } finally {
       setRedeemingCouponId(null);
@@ -145,7 +256,7 @@ const Coupons = () => {
     fetchUserBalance();
   };
 
-  if (loading) {
+  if (authLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />
@@ -194,6 +305,31 @@ const Coupons = () => {
             View My Redeemed Coupons →
           </button>
         </div>
+
+        {showCouponDemoTools && (
+          <div className="mt-6 mx-auto max-w-xl rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-900">
+            <p className="font-semibold mb-1">Demo / execution</p>
+            <p className="text-amber-800 mb-3">
+              Adds <strong>600 Vitacoins</strong> to your account so you can enable <strong>Redeem Coupon</strong>{' '}
+              (e.g. Zepto costs 300). Only works when the API allows demo top-up (local <code className="text-xs bg-amber-100 px-1 rounded">npm run dev</code> on the server).
+            </p>
+            <button
+              type="button"
+              onClick={handleDemoTopup}
+              disabled={demoTopupLoading}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2 font-medium text-white hover:bg-amber-700 disabled:opacity-60"
+            >
+              {demoTopupLoading ? (
+                <>
+                  <LoadingSpinner size="sm" />
+                  Adding coins…
+                </>
+              ) : (
+                <>+ Add 600 demo coins</>
+              )}
+            </button>
+          </div>
+        )}
       </motion.div>
 
       {/* Error Display */}
@@ -244,6 +380,9 @@ const Coupons = () => {
                   <CoinDisplay balance={coupon.cost} size="sm" />
                 </div>
                 <div className="text-sm text-warm-textSecondary">Cost in Vitacoins</div>
+                <p className="text-xs text-warm-textSecondary mt-2">
+                  +{COUPON_PRICE_STEP} coins after each time you redeem this brand (same offer).
+                </p>
               </div>
 
                              {/* Redeem Button */}
@@ -281,19 +420,6 @@ const Coupons = () => {
           </motion.div>
         ))}
       </motion.div>
-
-      {/* No Coupons Available */}
-      {coupons.length === 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center py-12"
-        >
-          <FiGift className="w-16 h-16 text-warm-textSecondary mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-warm-textSecondary mb-2">All Coupons Redeemed!</h3>
-          <p className="text-warm-textSecondary">You've redeemed all available coupons. Check back later for more!</p>
-        </motion.div>
-      )}
 
              {/* Success Modal */}
        {redeemedCoupon && (
@@ -343,7 +469,7 @@ const Coupons = () => {
                  <div className="flex justify-between">
                    <span className="text-warm-textSecondary">Cost:</span>
                    <span className="font-semibold text-red-600">
-                     <CoinDisplay balance={redeemedCoupon.cost} size="sm" />
+                     <CoinDisplay balance={redeemedCoupon.paidCoins ?? redeemedCoupon.cost} size="sm" />
                    </span>
                  </div>
                  <div className="flex justify-between">

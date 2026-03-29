@@ -7,11 +7,12 @@ const Transaction = require('../models/Transaction');
  * Prevents frontend manipulation of coin rewards
  */
 
-// Reward multipliers based on difficulty
+// Per-difficulty bases (keep in sync with frontend/src/utils/gameRewardPreview.js).
+// Admin `baseCoins` = Easy tier; Medium/Hard scale by coin ladder (2× / 3× vs Easy).
 const DIFFICULTY_REWARDS = {
-  easy: { coins: 5, xp: 10, minScore: 30 },
-  medium: { coins: 10, xp: 20, minScore: 50 },
-  hard: { coins: 20, xp: 30, minScore: 70 }
+  easy: { coins: 10, xp: 20, minScore: 35 },
+  medium: { coins: 20, xp: 30, minScore: 50 },
+  hard: { coins: 30, xp: 40, minScore: 75 }
 };
 
 // Attempt limits per difficulty per day
@@ -27,6 +28,32 @@ const UNLOCK_REQUIREMENTS = {
   // Align hard unlock with UI (Medium min 50% shown in LevelSelector)
   medium: { minScore: 50 } // 50% to unlock Hard
 };
+
+/**
+ * Min % score to earn rewards for this difficulty (admin overrides — keep in sync with gameRewardPreview.js)
+ * @param {object|null} gameDoc
+ * @param {string} difficulty
+ * @param {{ minScore: number }} dr - default row from DIFFICULTY_REWARDS
+ */
+function resolveMinScoreToEarn(gameDoc, difficulty, dr) {
+  const ms = gameDoc?.gameConfig?.minScores;
+  if (ms && typeof ms === 'object') {
+    const v = ms[difficulty];
+    // 0 = treat as unset (legacy / placeholder); use tier default
+    if (typeof v === 'number' && v > 0 && v <= 100) {
+      return v;
+    }
+  }
+  if (
+    gameDoc?.gameConfig &&
+    typeof gameDoc.gameConfig.minScore === 'number' &&
+    gameDoc.gameConfig.minScore > 0 &&
+    gameDoc.gameConfig.minScore <= 100
+  ) {
+    return gameDoc.gameConfig.minScore;
+  }
+  return dr.minScore;
+}
 
 class GameRewardService {
   /**
@@ -119,30 +146,63 @@ class GameRewardService {
    * @param {String} difficulty - Difficulty level
    * @param {Number} time - Time taken in seconds
    * @param {Number} correctAnswers - Number of correct answers (default: 0)
+   * @param {Object|null} gameDoc - Optional Game document; admin-tuned baseCoins / minScore / timeLimit apply when set
    * @returns {Object} Reward calculation
    */
-  static calculateRewards(score, difficulty, time = 0, correctAnswers = 0) {
-    const baseReward = DIFFICULTY_REWARDS[difficulty];
-    
-    if (!baseReward) {
+  static calculateRewards(score, difficulty, time = 0, correctAnswers = 0, gameDoc = null) {
+    const dr = DIFFICULTY_REWARDS[difficulty];
+
+    if (!dr) {
       return { coins: 0, xp: 0, reason: 'Invalid difficulty' };
     }
 
+    const adminCoins =
+      gameDoc?.rewards && typeof gameDoc.rewards.baseCoins === 'number' && gameDoc.rewards.baseCoins >= 0
+        ? gameDoc.rewards.baseCoins
+        : null;
+    const easyCoinRef = Math.max(1, DIFFICULTY_REWARDS.easy.coins);
+    const coinBase =
+      adminCoins !== null
+        ? Math.max(0, Math.round(adminCoins * (dr.coins / easyCoinRef)))
+        : dr.coins;
+
+    const easyXpDefault = DIFFICULTY_REWARDS.easy.xp;
+    const adminXpEasy =
+      gameDoc?.rewards &&
+      typeof gameDoc.rewards.baseXp === 'number' &&
+      !Number.isNaN(gameDoc.rewards.baseXp) &&
+      gameDoc.rewards.baseXp >= 0
+        ? gameDoc.rewards.baseXp
+        : null;
+
+    let xpBase;
+    if (adminXpEasy !== null) {
+      xpBase = Math.max(0, Math.round(adminXpEasy * (dr.xp / Math.max(1, easyXpDefault))));
+    } else if (adminCoins !== null) {
+      xpBase = Math.max(1, Math.round(dr.xp * (coinBase / Math.max(1, dr.coins))));
+    } else {
+      xpBase = dr.xp;
+    }
+
+    const minScore = resolveMinScoreToEarn(gameDoc, difficulty, dr);
+
+    const baseReward = { coins: coinBase, xp: xpBase, minScore };
+
     // MANDATORY: No reward if no correct answers
     if (correctAnswers === 0 || score === 0) {
-      return { 
-        coins: 0, 
-        xp: 0, 
-        reason: 'Try again! Reach the minimum score to earn rewards.' 
+      return {
+        coins: 0,
+        xp: 0,
+        reason: 'Try again! Reach the minimum score to earn rewards.'
       };
     }
 
     // MANDATORY: Check minimum score threshold
     if (score < baseReward.minScore) {
-      return { 
-        coins: 0, 
-        xp: 0, 
-        reason: 'Try again! Reach the minimum score to earn rewards.' 
+      return {
+        coins: 0,
+        xp: 0,
+        reason: 'Try again! Reach the minimum score to earn rewards.'
       };
     }
 
@@ -163,7 +223,11 @@ class GameRewardService {
 
     // Time bonus (faster = more bonus, only for medium/hard)
     if (difficulty !== 'easy' && time > 0) {
-      const timeBonus = Math.max(0, Math.floor((300 - time) / 30)); // 1 coin per 30 seconds saved
+      const timeCap =
+        gameDoc?.gameConfig && typeof gameDoc.gameConfig.timeLimit === 'number' && gameDoc.gameConfig.timeLimit > 0
+          ? gameDoc.gameConfig.timeLimit
+          : 300;
+      const timeBonus = Math.max(0, Math.floor((timeCap - time) / 30)); // 1 coin per 30 seconds under cap
       coins += timeBonus;
     }
 
@@ -185,13 +249,24 @@ class GameRewardService {
    * @param {Number} time - Time taken
    * @param {Number} accuracy - Accuracy percentage
    * @param {Number} correctAnswers - Correct answer count
+   * @param {Object|null} [gameDoc] - Game document for admin-tuned rewards/config
    * @param {String} [gameDisplayName] - Display name for transaction (e.g. "Verbal IQ", "Math Quiz")
    * @returns {Object} Result with rewards and unlock status
    */
-  static async processGameCompletion(user, gameSlug, difficulty, score, time, accuracy, correctAnswers = 0, gameDisplayName = null) {
+  static async processGameCompletion(
+    user,
+    gameSlug,
+    difficulty,
+    score,
+    time,
+    accuracy,
+    correctAnswers = 0,
+    gameDoc = null,
+    gameDisplayName = null
+  ) {
     try {
-      // Calculate rewards (with correctAnswers validation)
-      const rewards = this.calculateRewards(score, difficulty, time, correctAnswers);
+      // Calculate rewards (with correctAnswers validation + optional DB overrides)
+      const rewards = this.calculateRewards(score, difficulty, time, correctAnswers, gameDoc);
 
       // Update game progress
       // Ensure gameProgress is a Map instance
@@ -297,28 +372,29 @@ class GameRewardService {
         // Save user with all updates
         await user.save();
 
-        // Create transaction record with correct balance values
-        const transaction = new Transaction({
-          user: user._id,
-          type: 'earn',
-          amount: rewards.coins,
-          description,
-          category: 'game_completion',
-          balanceBefore: balanceBefore,
-          balanceAfter: user.coinBalance,
-          metadata: {
-            gameSlug,
-            difficulty,
-            score,
-            time,
-            accuracy,
-            correctAnswers,
-            xpEarned: rewards.xp,
-            levelUnlocked
-          }
-        });
-
-        await transaction.save();
+        // Coin ledger rows cannot have amount === 0 (Transaction schema). XP-only grants skip the row.
+        if (rewards.coins > 0) {
+          const transaction = new Transaction({
+            user: user._id,
+            type: 'earn',
+            amount: rewards.coins,
+            description,
+            category: 'game_completion',
+            balanceBefore: balanceBefore,
+            balanceAfter: user.coinBalance,
+            metadata: {
+              gameSlug,
+              difficulty,
+              score,
+              time,
+              accuracy,
+              correctAnswers,
+              xpEarned: rewards.xp,
+              levelUnlocked
+            }
+          });
+          await transaction.save();
+        }
       } else {
         // No rewards earned - still save progress but don't update coins
         await user.save();

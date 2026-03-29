@@ -1,21 +1,15 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion } from "framer-motion";
 import { FiX, FiPlay, FiPause } from "react-icons/fi";
 import axios from "axios";
 import toast from "react-hot-toast";
-import { useAuth } from "../../contexts/AuthContext";
 
 import MathQuiz from "./MathQuiz";
 import WordScramble from "./WordScramble";
 import CodeBreaker from "./CodeBreaker";
 import PuzzleSolver from "./PuzzleSolver";
 import VerbalIQ from "./VerbalIQ";
-
-const DIFFICULTY_BAR = {
-  easy: { label: "Easy", reward: "5 coins + 10 XP", bg: "bg-green-50", border: "border-green-300", text: "text-green-700" },
-  medium: { label: "Medium", reward: "10 coins + 20 XP", bg: "bg-yellow-50", border: "border-yellow-300", text: "text-yellow-700" },
-  hard: { label: "Hard", reward: "20 coins + 30 XP", bg: "bg-red-50", border: "border-red-300", text: "text-red-700" }
-};
+import { getDifficultyBarEntries } from "../../utils/gameRewardPreview";
 
 const GamePlayer = ({
   game,
@@ -27,7 +21,6 @@ const GamePlayer = ({
   dailyChallengeTasks,
   skipMenu = false,
 }) => {
-  const { updateBalance } = useAuth();
   const effectiveDifficulty = isDailyChallenge ? "hard" : difficulty;
   const [gameState, setGameState] = useState(skipMenu ? "playing" : "menu");
   const [score, setScore] = useState(0);
@@ -37,6 +30,8 @@ const GamePlayer = ({
   const [startTime, setStartTime] = useState(null);
   const [gameResetKey, setGameResetKey] = useState(0);
   const completionSentRef = useRef(false);
+
+  const difficultyBar = useMemo(() => getDifficultyBarEntries(game), [game]);
 
   /* ---------------- CLEANUP ---------------- */
   useEffect(() => {
@@ -180,20 +175,7 @@ const GamePlayer = ({
       return;
     }
 
-    try {
-      const response = await axios.post("/api/game/play", {
-        game: game.slug || game._id,
-        difficulty: effectiveDifficulty,
-        score: finalResult.score,
-        time: finalResult.time,
-        accuracy: finalResult.accuracy,
-        correctAnswers: finalResult.correctAnswers,
-      });
-      if (response.data?.newBalance != null) updateBalance(response.data.newBalance);
-    } catch (error) {
-      console.error("Game result save error:", error);
-    }
-
+    // Submission to /api/game/play is done by the parent (e.g. PlayGames) to avoid double posts.
     onComplete?.(finalResult);
   };
 
@@ -207,6 +189,11 @@ const GamePlayer = ({
 
   /* ---------------- RENDER GAME ---------------- */
   const renderGameComponent = () => {
+    const adminQuestionCount =
+      typeof game?.gameConfig?.questionCount === "number" && game.gameConfig.questionCount > 0
+        ? game.gameConfig.questionCount
+        : undefined;
+
     const gameProps = {
       onComplete: handleGameComplete,
       onPause: pauseGame,
@@ -216,6 +203,8 @@ const GamePlayer = ({
       resetKey: gameResetKey,
       isDailyChallenge,
       dailyChallengeTasks,
+      /** Admin-tuned length when not in daily challenge */
+      questionCountOverride: !dailyChallengeTasks && !isDailyChallenge ? adminQuestionCount : undefined,
     };
 
     switch (game.slug) {
@@ -304,11 +293,13 @@ const GamePlayer = ({
                   <div className="text-sm text-gray-500">Score</div>
                 </div>
                 {(() => {
-                  const d = DIFFICULTY_BAR[difficulty] || DIFFICULTY_BAR.easy;
+                  const d =
+                    difficultyBar[effectiveDifficulty] || difficultyBar.easy;
                   return (
                     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${d.bg} ${d.border} ${d.text}`}>
                       <span className="font-semibold text-sm">Difficulty: {d.label}</span>
                       <span className="text-xs opacity-90">• {d.reward}</span>
+                      <span className="text-xs opacity-80">(min {d.minScore}%)</span>
                     </div>
                   );
                 })()}

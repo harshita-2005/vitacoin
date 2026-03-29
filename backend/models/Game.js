@@ -35,10 +35,19 @@ const gameSchema = new mongoose.Schema({
   // For embedded games (built into the app)
   gameConfig: {
     rules: String,
-    timeLimit: Number, // in seconds
+    timeLimit: Number, // in seconds (rewards / session timers where supported)
     maxScore: Number,
+    /** @deprecated Prefer minScores — if set without per-tier overrides, applies to all difficulties */
     minScore: Number,
-    instructions: String
+    /** Per-difficulty minimum % to earn coins/XP (easy / medium / hard) */
+    minScores: {
+      easy: { type: Number, min: 0, max: 100 },
+      medium: { type: Number, min: 0, max: 100 },
+      hard: { type: Number, min: 0, max: 100 }
+    },
+    instructions: String,
+    /** When set, Math Quiz & Word Shuffle use this many questions/words (admin-tunable) */
+    questionCount: Number
   },
   // For external games
   externalUrl: String,
@@ -61,6 +70,11 @@ const gameSchema = new mongoose.Schema({
     perfectScoreBonus: {
       type: Number,
       default: 10
+    },
+    /** Optional: Easy-tier XP base; medium/hard scale 2× and 3×. Omit/unset = derive XP from baseCoins (default). */
+    baseXp: {
+      type: Number,
+      min: 0
     }
   },
   // Game availability

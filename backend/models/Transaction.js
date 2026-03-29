@@ -78,7 +78,8 @@ const transactionSchema = new mongoose.Schema({
     xpEarned: Number,
     levelUnlocked: Boolean,
     // MCQ batch: subject names for CS Fundamentals (e.g. ['OS', 'CN'])
-    mcqSubjects: [String]
+    mcqSubjects: [String],
+    couponId: Number
   },
   status: {
     type: String,

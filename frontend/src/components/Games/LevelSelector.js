@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { FiLock, FiUnlock, FiCheck, FiAlertCircle } from 'react-icons/fi';
 import axios from 'axios';
+import { getAllRewardBases } from '../../utils/gameRewardPreview';
 
-const LevelSelector = ({ gameSlug, onLevelSelect, selectedLevel }) => {
+const LevelSelector = ({ gameSlug, onLevelSelect, selectedLevel, game }) => {
   const [progress, setProgress] = useState(null);
   const [loading, setLoading] = useState(true);
   const [attempts, setAttempts] = useState({});
@@ -52,38 +53,43 @@ const LevelSelector = ({ gameSlug, onLevelSelect, selectedLevel }) => {
     fetchProgress();
   }, [fetchProgress]);
 
-  const levels = [
-    {
-      key: 'easy',
-      label: 'Easy',
-      coins: 5,
-      xp: 10,
-      minScore: 30,
-      color: 'green',
-      description: 'Perfect for beginners',
-      attempts: 'Unlimited'
-    },
-    {
-      key: 'medium',
-      label: 'Medium',
-      coins: 10,
-      xp: 20,
-      minScore: 50,
-      color: 'yellow',
-      description: 'Moderate challenge',
-      attempts: '5 per day'
-    },
-    {
-      key: 'hard',
-      label: 'Hard',
-      coins: 20,
-      xp: 30,
-      minScore: 70,
-      color: 'red',
-      description: 'Expert level',
-      attempts: '2 per day'
-    }
-  ];
+  const rewardBases = useMemo(() => getAllRewardBases(game), [game]);
+
+  const levels = useMemo(
+    () => [
+      {
+        key: 'easy',
+        label: 'Easy',
+        coins: rewardBases.easy.coins,
+        xp: rewardBases.easy.xp,
+        minScore: rewardBases.easy.minScore,
+        color: 'green',
+        description: 'Perfect for beginners',
+        attempts: 'Unlimited'
+      },
+      {
+        key: 'medium',
+        label: 'Medium',
+        coins: rewardBases.medium.coins,
+        xp: rewardBases.medium.xp,
+        minScore: rewardBases.medium.minScore,
+        color: 'yellow',
+        description: 'Moderate challenge',
+        attempts: '5 per day'
+      },
+      {
+        key: 'hard',
+        label: 'Hard',
+        coins: rewardBases.hard.coins,
+        xp: rewardBases.hard.xp,
+        minScore: rewardBases.hard.minScore,
+        color: 'red',
+        description: 'Expert level',
+        attempts: '2 per day'
+      }
+    ],
+    [rewardBases]
+  );
 
   const isLevelUnlocked = (levelKey) => {
     if (!progress) return levelKey === 'easy';

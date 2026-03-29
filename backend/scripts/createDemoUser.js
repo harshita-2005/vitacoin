@@ -24,8 +24,8 @@ const createDemoUser = async () => {
       firstName: 'Demo',
       lastName: 'User',
       role: 'user',
-      coinBalance: 100, // Give some starting coins for testing
-      totalEarned: 100,
+      coinBalance: 600, // Enough to redeem cheapest coupon (300) for demos
+      totalEarned: 600,
       isActive: true
     });
 
@@ -34,7 +34,7 @@ const createDemoUser = async () => {
     console.log('Email: demo@vitacoin.com');
     console.log('Password: demo123');
     console.log('Role: user (regular user, not admin)');
-    console.log('Starting coins: 100');
+    console.log('Starting coins: 600');
 
     process.exit(0);
   } catch (error) {

@@ -85,8 +85,12 @@ router.get('/stats', protect, async (req, res) => {
       deductionCount: 0
     };
 
+    const txCount = transactionStats.transactionCount || 0;
+
     res.json({
       ...transactionStats,
+      /** Alias — frontend/dashboard use this name for “total transaction rows” */
+      totalTransactions: txCount,
       currentBalance: user.coinBalance,
       totalEarned: user.totalEarned,
       netEarnings: transactionStats.totalEarned - transactionStats.totalDeducted

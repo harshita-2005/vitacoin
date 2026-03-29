@@ -1,14 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { FiAward, FiFilter, FiSearch } from 'react-icons/fi';
 import axios from 'axios';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
+import AchievementMilestones from '../../components/Badges/AchievementMilestones';
+import { useAuth } from '../../contexts/AuthContext';
 
 const Badges = () => {
+  const { user } = useAuth();
   const [badges, setBadges] = useState([]);
   const [userBadges, setUserBadges] = useState([]);
   const [badgeProgress, setBadgeProgress] = useState([]);
   const [recommendedBadges, setRecommendedBadges] = useState([]);
+  const [txStats, setTxStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     category: '',
@@ -17,22 +21,25 @@ const Badges = () => {
 
   useEffect(() => {
     fetchBadges();
-  }, [filters]);
+  }, []);
 
   const fetchBadges = async () => {
     try {
       setLoading(true);
-      const [badgesRes, userBadgesRes, progressRes, recommendedRes] = await Promise.all([
+      const [badgesRes, userBadgesRes, progressRes, recommendedRes, statsRes] = await Promise.all([
         axios.get('/api/badges'),
         axios.get('/api/badges/user'),
         axios.get('/api/badges/progress'),
-        axios.get('/api/badges/recommended')
+        axios.get('/api/badges/recommended'),
+        axios.get('/api/transactions/stats')
       ]);
 
-      setBadges(badgesRes.data);
-      setUserBadges(userBadgesRes.data.badges);
-      setBadgeProgress(progressRes.data.progress);
-      setRecommendedBadges(recommendedRes.data.recommended);
+      const raw = badgesRes.data;
+      setBadges(Array.isArray(raw) ? raw : raw?.badges || []);
+      setUserBadges(userBadgesRes.data?.badges || []);
+      setBadgeProgress(progressRes.data?.progress || []);
+      setRecommendedBadges(recommendedRes.data?.recommended || []);
+      setTxStats(statsRes.data || null);
     } catch (error) {
       console.error('Error fetching badges:', error);
     } finally {
@@ -83,6 +90,11 @@ const Badges = () => {
     return userBadges.some(badge => badge._id === badgeId);
   };
 
+  const totalTransactions = useMemo(
+    () => txStats?.totalTransactions ?? txStats?.transactionCount ?? 0,
+    [txStats]
+  );
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -96,6 +108,9 @@ const Badges = () => {
     if (filters.rarity && badge.rarity !== filters.rarity) return false;
     return true;
   });
+
+  const catalogEmpty = badges.length === 0;
+  const filterEmpty = !catalogEmpty && filteredBadges.length === 0;
 
   return (
     <div className="space-y-6">
@@ -131,6 +146,15 @@ const Badges = () => {
           </div>
         </div>
       </div>
+
+      {/* Same milestones as Dashboard — always visible */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+      >
+        <AchievementMilestones user={user} totalTransactions={totalTransactions} />
+      </motion.div>
 
       {/* Filters */}
       <motion.div
@@ -256,7 +280,28 @@ const Badges = () => {
           </h3>
         </div>
         <div className="card-body">
-          {filteredBadges.length > 0 ? (
+          {catalogEmpty ? (
+            <div className="text-center py-10 px-4">
+              <FiAward className="w-14 h-14 text-warm-textSecondary mx-auto mb-4 opacity-80" />
+              <p className="text-warm-text font-medium text-lg mb-2">No badge catalog loaded</p>
+              <p className="text-warm-textSecondary text-sm max-w-lg mx-auto mb-4">
+                The database doesn&apos;t have badge definitions yet. Seed them once from the backend folder:
+              </p>
+              <code className="block text-sm bg-warm-secondary/80 text-warm-text px-4 py-2 rounded-lg max-w-md mx-auto">
+                npm run seed-badges
+              </code>
+              <p className="text-warm-textSecondary text-xs mt-4">
+                You can still track <strong>First Steps</strong> and <strong>Active Trader</strong> above. Use{' '}
+                <strong>Check for New Badges</strong> after earning rewards.
+              </p>
+            </div>
+          ) : filterEmpty ? (
+            <div className="text-center py-12">
+              <FiSearch className="w-12 h-12 text-warm-textSecondary mx-auto mb-4" />
+              <p className="text-warm-textSecondary text-lg">No badges match these filters</p>
+              <p className="text-warm-textSecondary text-sm mt-1">Try &quot;All Categories&quot; and &quot;All Rarities&quot;</p>
+            </div>
+          ) : filteredBadges.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredBadges.map((badge, index) => (
                 <motion.div
@@ -375,13 +420,7 @@ const Badges = () => {
                 </motion.div>
               ))}
             </div>
-          ) : (
-            <div className="text-center py-12">
-              <FiSearch className="w-12 h-12 text-warm-textSecondary mx-auto mb-4" />
-              <p className="text-warm-textSecondary text-lg">No badges found</p>
-              <p className="text-warm-textSecondary">Try adjusting your filters</p>
-            </div>
-          )}
+          ) : null}
         </div>
       </motion.div>
     </div>

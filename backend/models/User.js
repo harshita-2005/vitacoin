@@ -150,7 +150,12 @@ const userSchema = new mongoose.Schema({
   completedMcqs: [{
     mcqId: { type: String, required: true },
     completedAt: { type: Date, default: Date.now }
-  }]
+  }],
+  // Times each catalog coupon id (1–6) was redeemed — next Vitacoin price increases per brand
+  couponRedemptionCounts: {
+    type: mongoose.Schema.Types.Mixed,
+    default: () => ({})
+  }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

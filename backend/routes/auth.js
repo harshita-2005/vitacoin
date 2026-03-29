@@ -40,7 +40,8 @@ router.post('/register', async (req, res) => {
           coinBalance: user.coinBalance,
           totalEarned: user.totalEarned,
           badgeCount: user.badgeCount,
-          role: user.role
+          role: user.role,
+          couponRedemptionCounts: user.couponRedemptionCounts || {}
         },
         token: token
       });
@@ -61,7 +62,14 @@ router.post('/register', async (req, res) => {
 // @access  Public
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const rawEmail = req.body?.email;
+    const password = req.body?.password;
+    const email =
+      typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
 
     // Check for user
     const user = await User.findOne({ email }).select('+password');
@@ -111,6 +119,7 @@ router.post('/login', async (req, res) => {
       // Reset Interview Arena progress so puzzles and MCQs show as not completed
       user.completedPuzzles = [];
       user.completedMcqs = [];
+      user.couponRedemptionCounts = {};
       // Clear badges (optional - remove if you want to keep badges)
       user.badges = [];
     }
@@ -130,7 +139,8 @@ router.post('/login', async (req, res) => {
         coinBalance: user.coinBalance,
         totalEarned: user.totalEarned,
         badgeCount: user.badgeCount,
-        role: user.role
+        role: user.role,
+        couponRedemptionCounts: user.couponRedemptionCounts || {}
       },
       token: token
     });

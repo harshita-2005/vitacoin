@@ -7,7 +7,6 @@ import {
   FiShield, 
   FiSettings,
   FiSave,
-  FiLogOut,
   FiBell,
   FiGlobe,
   FiDatabase,
@@ -16,12 +15,7 @@ import {
   FiEyeOff
 } from 'react-icons/fi';
 import axios from 'axios';
-import { useAuth } from '../../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-
 const AdminSettings = () => {
-  const { logout } = useAuth();
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -146,13 +140,6 @@ const AdminSettings = () => {
     }
   };
 
-  const handleLogout = () => {
-    if (window.confirm('Are you sure you want to logout?')) {
-      logout();
-      navigate('/login');
-    }
-  };
-
   const clearMessage = () => {
     setTimeout(() => setMessage({ type: '', text: '' }), 5000);
   };
@@ -169,15 +156,12 @@ const AdminSettings = () => {
       animate={{ opacity: 1, y: 0 }}
       className="space-y-8"
     >
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800">Admin Settings</h1>
-        <button
-          onClick={handleLogout}
-          className="btn btn-outline btn-error"
-        >
-          <FiLogOut className="w-4 h-4 mr-2" />
-          Logout
-        </button>
+      <div>
+        <h1 className="text-3xl font-bold text-gray-800">Platform Settings</h1>
+        <p className="text-gray-600 mt-1 max-w-3xl">
+          Configure global platform settings, reward policies, and system preferences — for example default reward
+          coins, difficulty scaling, and game timers where applicable.
+        </p>
       </div>
 
       {message.text && (
@@ -337,50 +321,58 @@ const AdminSettings = () => {
 
             <form onSubmit={handleSystemSettingsSubmit} className="space-y-4">
               <div className="form-group">
-                <label className="label cursor-pointer">
-                  <span className="label-text">Maintenance Mode</span>
+                <label className="label cursor-pointer flex flex-row items-start gap-3 justify-start w-full">
                   <input
                     type="checkbox"
-                    className="toggle toggle-error"
+                    className="toggle toggle-error shrink-0 mt-0.5"
                     checked={systemSettings.maintenanceMode}
-                    onChange={(e) => setSystemSettings(prev => ({ 
-                      ...prev, 
-                      maintenanceMode: e.target.checked 
-                    }))}
+                    onChange={(e) =>
+                      setSystemSettings((prev) => ({
+                        ...prev,
+                        maintenanceMode: e.target.checked
+                      }))
+                    }
                   />
+                  <span className="label-text flex-1 text-left">
+                    <span className="block font-medium">Maintenance Mode</span>
+                    <span className="block text-sm text-gray-500 font-normal mt-1">
+                      When enabled, only admins can access the system
+                    </span>
+                  </span>
                 </label>
-                <div className="text-sm text-gray-500 mt-1">
-                  When enabled, only admins can access the system
-                </div>
               </div>
 
               <div className="form-group">
-                <label className="label cursor-pointer">
-                  <span className="label-text">Allow User Registrations</span>
+                <label className="label cursor-pointer flex flex-row items-center gap-3 justify-start w-full">
                   <input
                     type="checkbox"
-                    className="toggle toggle-primary"
+                    className="toggle toggle-primary shrink-0"
                     checked={systemSettings.allowRegistrations}
-                    onChange={(e) => setSystemSettings(prev => ({ 
-                      ...prev, 
-                      allowRegistrations: e.target.checked 
-                    }))}
+                    onChange={(e) =>
+                      setSystemSettings((prev) => ({
+                        ...prev,
+                        allowRegistrations: e.target.checked
+                      }))
+                    }
                   />
+                  <span className="label-text flex-1 text-left">Allow User Registrations</span>
                 </label>
               </div>
 
               <div className="form-group">
-                <label className="label cursor-pointer">
-                  <span className="label-text">Email Notifications</span>
+                <label className="label cursor-pointer flex flex-row items-center gap-3 justify-start w-full">
                   <input
                     type="checkbox"
-                    className="toggle toggle-primary"
+                    className="toggle toggle-primary shrink-0"
                     checked={systemSettings.emailNotifications}
-                    onChange={(e) => setSystemSettings(prev => ({ 
-                      ...prev, 
-                      emailNotifications: e.target.checked 
-                    }))}
+                    onChange={(e) =>
+                      setSystemSettings((prev) => ({
+                        ...prev,
+                        emailNotifications: e.target.checked
+                      }))
+                    }
                   />
+                  <span className="label-text flex-1 text-left">Email Notifications</span>
                 </label>
               </div>
 

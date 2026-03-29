@@ -1,16 +1,17 @@
 import React from 'react';
+import { getRewardBaseForDifficulty, formatRewardSummary } from '../../utils/gameRewardPreview';
 
 /**
  * Visual Difficulty Indicator Component
  * Displays current difficulty level with color coding and reward info
+ * @param {object|null} [game] - Optional game doc (same shape as API); matches server base rewards when set
  */
-const DifficultyIndicator = ({ difficulty = 'easy' }) => {
+const DifficultyIndicator = ({ difficulty = 'easy', game = null }) => {
   const difficultyConfig = {
     easy: {
       label: 'Easy',
       color: 'green',
       icon: '🟢',
-      reward: '5 coins + 10 XP',
       bgColor: 'bg-green-50',
       borderColor: 'border-green-300',
       textColor: 'text-green-700'
@@ -19,7 +20,6 @@ const DifficultyIndicator = ({ difficulty = 'easy' }) => {
       label: 'Medium',
       color: 'yellow',
       icon: '🟡',
-      reward: '10 coins + 20 XP',
       bgColor: 'bg-yellow-50',
       borderColor: 'border-yellow-300',
       textColor: 'text-yellow-700'
@@ -28,14 +28,18 @@ const DifficultyIndicator = ({ difficulty = 'easy' }) => {
       label: 'Hard',
       color: 'red',
       icon: '🔴',
-      reward: '20 coins + 30 XP',
       bgColor: 'bg-red-50',
       borderColor: 'border-red-300',
       textColor: 'text-red-700'
     }
   };
 
-  const config = difficultyConfig[difficulty] || difficultyConfig.easy;
+  const preset = difficultyConfig[difficulty] || difficultyConfig.easy;
+  const base = getRewardBaseForDifficulty(difficulty, game);
+  const config = {
+    ...preset,
+    reward: formatRewardSummary(base.coins, base.xp)
+  };
 
   return (
     <div className={`${config.bgColor} ${config.borderColor} border-2 rounded-lg p-3 mb-4`}>

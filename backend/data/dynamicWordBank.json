@@ -1,1 +1,153 @@
-[]
+[
+  {
+    "word": "stingy",
+    "difficulty": "medium",
+    "synonyms": [
+      "mean",
+      "close",
+      "meager",
+      "penurious"
+    ],
+    "antonyms": [
+      "stingy",
+      "stingy"
+    ]
+  },
+  {
+    "word": "rich",
+    "difficulty": "easy",
+    "synonyms": [
+      "robust",
+      "ample",
+      "lush",
+      "gilded"
+    ],
+    "antonyms": [
+      "lean",
+      "poor"
+    ]
+  },
+  {
+    "word": "dull",
+    "difficulty": "easy",
+    "synonyms": [
+      "soft",
+      "obtuse",
+      "drab",
+      "heavy"
+    ],
+    "antonyms": [
+      "sharp",
+      "bright",
+      "sharpen",
+      "lively"
+    ]
+  },
+  {
+    "word": "good",
+    "difficulty": "easy",
+    "synonyms": [
+      "benevolent",
+      "keen",
+      "adept",
+      "virtuous"
+    ],
+    "antonyms": [
+      "malevolent",
+      "evil",
+      "wicked",
+      "malicious"
+    ]
+  },
+  {
+    "word": "slow",
+    "difficulty": "easy",
+    "synonyms": [
+      "dull",
+      "obtuse",
+      "slack",
+      "dim"
+    ],
+    "antonyms": [
+      "apace",
+      "fast",
+      "accelerate",
+      "rapidly"
+    ]
+  },
+  {
+    "word": "love",
+    "difficulty": "easy",
+    "synonyms": [
+      "passion",
+      "beloved",
+      "lovemaking",
+      "enjoy"
+    ],
+    "antonyms": [
+      "detest",
+      "hatred",
+      "hate"
+    ]
+  },
+  {
+    "word": "generous",
+    "difficulty": "hard",
+    "synonyms": [
+      "benevolent",
+      "ample",
+      "lavish",
+      "kind"
+    ],
+    "antonyms": [
+      "stingy",
+      "meanspirited",
+      "ungenerous"
+    ]
+  },
+  {
+    "word": "bright",
+    "difficulty": "medium",
+    "synonyms": [
+      "ardent",
+      "lurid",
+      "lucent",
+      "light"
+    ],
+    "antonyms": [
+      "dull",
+      "dim",
+      "dimmed"
+    ]
+  },
+  {
+    "word": "happy",
+    "difficulty": "medium",
+    "synonyms": [
+      "halcyon",
+      "content",
+      "bright",
+      "felicitous"
+    ],
+    "antonyms": [
+      "sad",
+      "distressed",
+      "unhappy",
+      "dysphoric"
+    ]
+  },
+  {
+    "word": "honest",
+    "difficulty": "medium",
+    "synonyms": [
+      "veracious",
+      "guileless",
+      "open",
+      "reliable"
+    ],
+    "antonyms": [
+      "dishonorable",
+      "dishonest"
+    ]
+  }
+]

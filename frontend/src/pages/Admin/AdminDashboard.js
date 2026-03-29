@@ -14,13 +14,32 @@ import {
 import toast from 'react-hot-toast';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
-import AdminTasks from './AdminTasks';
 import AdminChallenges from './AdminChallenges';
 import AdminGames from './AdminGames';
 import AdminUsers from './AdminUsers';
 import AdminSettings from './AdminSettings';
+
+const ADMIN_TAB_PATHS = {
+  overview: '/admin',
+  challenges: '/admin/challenges',
+  games: '/admin/games',
+  users: '/admin/users',
+  data: '/admin/data',
+  settings: '/admin/settings'
+};
+
+const VALID_ADMIN_SEGMENTS = new Set(['challenges', 'games', 'users', 'data', 'settings']);
+
+function pathnameToAdminTab(pathname) {
+  const p = pathname.replace(/\/$/, '') || '/admin';
+  if (p === '/admin') return 'overview';
+  const parts = p.split('/').filter(Boolean);
+  if (parts[0] !== 'admin' || parts.length < 2) return 'overview';
+  const seg = parts[1];
+  return VALID_ADMIN_SEGMENTS.has(seg) ? seg : null;
+}
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -28,6 +47,16 @@ const AdminDashboard = () => {
   const [stats, setStats] = useState({});
   const { logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const tab = pathnameToAdminTab(location.pathname);
+    if (tab === null) {
+      navigate('/admin', { replace: true });
+      return;
+    }
+    setActiveTab(tab);
+  }, [location.pathname, navigate]);
 
   useEffect(() => {
     fetchAdminData();
@@ -83,11 +112,10 @@ const AdminDashboard = () => {
 
   const tabs = [
     { id: 'overview', name: 'Overview', icon: FiTrendingUp },
-    { id: 'tasks', name: 'Tasks', icon: FiTarget },
     { id: 'challenges', name: 'Challenges', icon: FiTarget },
     { id: 'games', name: 'Games', icon: FiPlay },
     { id: 'users', name: 'Users', icon: FiUsers },
-    { id: 'dataset', name: 'Dataset', icon: FiDatabase },
+    { id: 'data', name: 'Data', icon: FiDatabase },
     { id: 'settings', name: 'Settings', icon: FiSettings }
   ];
 
@@ -99,55 +127,72 @@ const AdminDashboard = () => {
     );
   }
 
+  const currentTabLabel = tabs.find((t) => t.id === activeTab)?.name ?? 'Admin';
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div className="text-center flex-1">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            🛡️ Admin Dashboard
-          </h1>
-          <p className="text-lg text-gray-600">
-            Manage challenges, games, and monitor user activity
-          </p>
+    <div className="max-w-7xl mx-auto">
+      <div className="rounded-2xl border border-warm-border bg-warm-card shadow-sm overflow-hidden">
+        {/* Top: light header + tabs (coffee accent border below) */}
+        <div className="relative bg-white px-4 py-5 md:px-8 md:py-6 border-b border-warm-border">
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm('Are you sure you want to logout?')) {
+                logout();
+                navigate('/login');
+              }
+            }}
+            className="btn btn-outline border-warm-border text-warm-text hover:bg-warm-container absolute top-4 right-4 md:top-5 md:right-8 z-10 text-sm"
+          >
+            <FiLogOut className="w-4 h-4 mr-2" />
+            Logout
+          </button>
+
+          <div className="text-center max-w-2xl mx-auto px-2 sm:px-12">
+            <h1 className="text-2xl md:text-3xl font-bold text-warm-text tracking-tight">
+              Administration
+            </h1>
+            {activeTab === 'overview' ? (
+              <>
+                <p className="text-warm-textSecondary mt-2 text-base md:text-lg">
+                  Monitor platform performance, user activity, and engagement.
+                </p>
+                <p className="text-sm text-warm-textSecondary/90 mt-2">
+                  Use this panel to manage and optimize platform performance efficiently.
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-warm-textSecondary mt-2">
+                <span className="font-semibold text-warm-primary">{currentTabLabel}</span>
+                <span className="text-warm-textSecondary"> — workspace below</span>
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-wrap justify-center gap-2 mt-6 pt-6 border-t border-warm-border/80">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => navigate(ADMIN_TAB_PATHS[tab.id])}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 border ${
+                    activeTab === tab.id
+                      ? 'bg-warm-primary text-white border-warm-primary shadow-md'
+                      : 'bg-warm-container/60 text-warm-text border-warm-border hover:bg-warm-secondary/40 hover:border-warm-secondary'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  {tab.name}
+                </button>
+              );
+            })}
+          </div>
         </div>
-        <button
-          onClick={() => {
-            if (window.confirm('Are you sure you want to logout?')) {
-              logout();
-              navigate('/login');
-            }
-          }}
-          className="btn btn-outline btn-error"
-        >
-          <FiLogOut className="w-4 h-4 mr-2" />
-          Logout
-        </button>
-      </div>
 
-      {/* Tab Navigation */}
-      <div className="flex flex-wrap justify-center gap-2">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all duration-200 ${
-                activeTab === tab.id
-                  ? 'bg-primary-600 text-white shadow-lg'
-                  : 'bg-white text-gray-600 hover:bg-gray-50 shadow-md'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              {tab.name}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Tab Content */}
-      <div className="mt-8">
+        {/* Bottom: coffee-tinted workspace (differentiates from header) */}
+        <div className="bg-warm-container px-4 py-6 md:px-8 md:py-8 min-h-[12rem] border-t border-warm-secondary/30">
         {activeTab === 'overview' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -206,20 +251,30 @@ const AdminDashboard = () => {
           </motion.div>
         )}
 
-        {activeTab === 'dataset' && (
+        {activeTab === 'data' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="space-y-6"
           >
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Data Management</h2>
+              <p className="text-gray-600 mt-1">
+                Manage game content, including questions, word sets, and other gameplay data.
+              </p>
+              <p className="text-sm text-gray-500 mt-3">
+                This section handles <strong>content</strong>, not game creation. Examples: add words for Verbal IQ / Code
+                Breaker, extend word banks for Word Shuffle, or future question/puzzle imports.
+              </p>
+            </div>
             <div className="card">
               <div className="card-body">
-                <h2 className="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
-                  <FiDatabase className="w-6 h-6 text-primary-600" />
-                  Add data to dataset
-                </h2>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <FiDatabase className="w-5 h-5 text-primary-600" />
+                  Import content
+                </h3>
                 <p className="text-gray-600 mb-6">
-                  Click a button to fetch new words from external APIs and add them to the game datasets. This keeps content fresh and reduces repetition for players.
+                  Fetch new words from external APIs and merge them into live datasets so players see less repetition.
                 </p>
                 <div className="flex flex-wrap gap-4">
                   <button
@@ -254,16 +309,6 @@ const AdminDashboard = () => {
           </motion.div>
         )}
 
-        {activeTab === 'tasks' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-6"
-          >
-            <AdminTasks />
-          </motion.div>
-        )}
-
         {activeTab === 'games' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -287,6 +332,7 @@ const AdminDashboard = () => {
         {activeTab === 'settings' && (
           <AdminSettings />
         )}
+        </div>
       </div>
     </div>
   );
