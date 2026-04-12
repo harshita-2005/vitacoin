@@ -361,18 +361,27 @@ router.post('/:id/complete', protect, async (req, res) => {
 
     // If successful, award rewards
     let rewards = { coinsEarned: 0, experienceEarned: 0 };
-    
+    let newBalance;
+    let newExperiencePoints;
+    let userLevelAfter;
+
     if (isSuccessful) {
       // Award challenge rewards
       rewards.coinsEarned = challenge.rewards.coins || 0;
       rewards.experienceEarned = challenge.rewards.experience || 0;
-      
-      // Update user's coin balance and experience
+
+      // Update user's coin balance and experience (same field as games / leaderboard)
       const user = await User.findById(req.user._id);
       user.coinBalance += rewards.coinsEarned;
-      user.experience += rewards.experienceEarned;
+      user.experiencePoints = (user.experiencePoints || 0) + rewards.experienceEarned;
+      const newLevel = Math.floor(user.experiencePoints / 100) + 1;
+      if (newLevel > (user.userLevel || 1)) user.userLevel = newLevel;
       await user.save();
-      
+
+      newBalance = user.coinBalance;
+      newExperiencePoints = user.experiencePoints;
+      userLevelAfter = user.userLevel;
+
       // Update user challenge with rewards
       updatedUserChallenge.rewards = rewards;
       await updatedUserChallenge.save();
@@ -385,8 +394,15 @@ router.post('/:id/complete', protect, async (req, res) => {
       timeLimit,
       isTimeValid,
       isScoreValid,
-      rewards,
-      message: isSuccessful 
+      rewards: {
+        ...rewards,
+        coins: rewards.coinsEarned,
+        experience: rewards.experienceEarned
+      },
+      ...(isSuccessful
+        ? { newBalance, newExperiencePoints, userLevel: userLevelAfter }
+        : {}),
+      message: isSuccessful
         ? `Challenge completed successfully! Earned ${rewards.coinsEarned} coins and ${rewards.experienceEarned} XP`
         : `Challenge failed. Time: ${timeElapsed}s/${timeLimit}s, Score: ${score}/${minScore}`
     });

@@ -7,6 +7,7 @@ const router = express.Router();
 const { protect } = require('../middleware/auth');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
+const { addXpAndLevel } = require('../utils/xpUser');
 
 const MIN_REWARD = 1;
 const MAX_REWARD = 100;
@@ -72,7 +73,10 @@ router.post('/complete', protect, async (req, res) => {
       success: true,
       mcqId,
       coinsAwarded: reward,
+      xpAwarded,
       newBalance: user.coinBalance,
+      newExperiencePoints: user.experiencePoints,
+      userLevel: user.userLevel,
       message: `Correct! +${reward} coins awarded.`
     });
   } catch (error) {
@@ -119,13 +123,22 @@ router.post('/complete-batch', protect, async (req, res) => {
       });
     }
 
+    const addedIds = new Set(toAdd.map(a => a.mcqId));
+    let batchXp = 0;
+    for (const it of items) {
+      const id = it.mcqId && typeof it.mcqId === 'string' ? it.mcqId : null;
+      if (!id || !addedIds.has(id)) continue;
+      const r = Math.min(MAX_REWARD, Math.max(MIN_REWARD, parseInt(it.reward, 10) || 10));
+      batchXp += Math.min(40, Math.max(2, Math.round(r / 2)));
+    }
+
     const balanceBefore = user.coinBalance || 0;
     user.completedMcqs.push(...toAdd);
     user.coinBalance = balanceBefore + totalCoins;
     user.totalEarned = (user.totalEarned || 0) + totalCoins;
+    addXpAndLevel(user, batchXp);
     await user.save();
 
-    const addedIds = new Set(toAdd.map(a => a.mcqId));
     const subjects = [...new Set(items.filter(it => addedIds.has(it.mcqId) && it.subject).map(it => it.subject))].filter(Boolean).sort();
     const subjectLabel = subjects.length ? ` (${subjects.join(', ')})` : '';
     const description = `CS Fundamentals – ${toAdd.length} correct${subjectLabel}`.slice(0, 200);
@@ -144,7 +157,10 @@ router.post('/complete-batch', protect, async (req, res) => {
     res.json({
       success: true,
       coinsAwarded: totalCoins,
+      xpAwarded: batchXp,
       newBalance: user.coinBalance,
+      newExperiencePoints: user.experiencePoints,
+      userLevel: user.userLevel,
       completed: completedIds,
       message: `CS Fundamentals – ${toAdd.length} correct, +${totalCoins} coins.`
     });

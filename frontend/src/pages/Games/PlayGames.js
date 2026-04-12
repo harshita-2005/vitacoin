@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { FiPlay, FiStar, FiAward, FiClock, FiTrendingUp, FiSearch, FiTarget, FiLogOut } from 'react-icons/fi';
+import { FiPlay, FiStar, FiAward, FiSearch, FiTarget, FiLogOut } from 'react-icons/fi';
 import api from '../../api/axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -27,7 +27,6 @@ const PlayGames = () => {
   const [isDailyChallenge, setIsDailyChallenge] = useState(false);
   const [showDailyChallengeSession, setShowDailyChallengeSession] = useState(false);
   const [dailyChallengeRefreshKey, setDailyChallengeRefreshKey] = useState(0);
-  const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   const fetchGamesData = useCallback(async () => {
@@ -223,37 +222,23 @@ const PlayGames = () => {
   };
 
   const getFilteredGames = () => {
-    let filtered = games;
-    
-    if (filter !== 'all') {
-      filtered = filtered.filter(game => game.category === filter);
-    }
-    
-    if (searchQuery) {
-      filtered = filtered.filter(game => 
-        game.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        game.description.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-    
-    return filtered;
+    if (!searchQuery) return games;
+    const q = searchQuery.toLowerCase();
+    return games.filter(
+      (game) =>
+        game.name.toLowerCase().includes(q) ||
+        game.description.toLowerCase().includes(q)
+    );
   };
 
   const getFilteredChallenges = () => {
-    let filtered = challenges;
-    
-    if (filter !== 'all') {
-      filtered = filtered.filter(challenge => challenge.type === filter);
-    }
-    
-    if (searchQuery) {
-      filtered = filtered.filter(challenge => 
-        challenge.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        challenge.description.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-    
-    return filtered;
+    if (!searchQuery) return challenges;
+    const q = searchQuery.toLowerCase();
+    return challenges.filter(
+      (challenge) =>
+        challenge.title.toLowerCase().includes(q) ||
+        challenge.description.toLowerCase().includes(q)
+    );
   };
 
   // Only show global loading spinner when no game modal is open
@@ -370,50 +355,21 @@ const PlayGames = () => {
           </button>
         </motion.div>
 
-        {/* Search and Filter */}
+        {/* Search */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-            <div className="relative flex-1 max-w-md">
-              <input
-                type="text"
-                placeholder="Search games and challenges..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="input w-full pl-10"
-              />
-              <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-warm-textSecondary w-5 h-5" />
-            </div>
-            
-            <div className="flex flex-wrap gap-2">
-              {[
-                { key: 'all', label: 'All', icon: FiStar },
-                { key: 'puzzle', label: 'Puzzle', icon: FiTarget },
-                { key: 'action', label: 'Action', icon: FiPlay },
-                { key: 'memory', label: 'Memory', icon: FiClock },
-                { key: 'daily', label: 'Daily', icon: FiTrendingUp },
-                { key: 'weekly', label: 'Weekly', icon: FiAward }
-              ].map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.key}
-                    onClick={() => setFilter(tab.key)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all duration-200 ${
-                      filter === tab.key
-                        ? 'bg-warm-primary text-white shadow-lg'
-                        : 'bg-white text-warm-textSecondary hover:bg-warm-container shadow-md border border-warm-border'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
+          <div className="relative max-w-md w-full">
+            <input
+              type="text"
+              placeholder="Search games and challenges..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="input w-full pl-10"
+            />
+            <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-warm-textSecondary w-5 h-5" />
           </div>
         </motion.div>
 
@@ -516,7 +472,7 @@ const PlayGames = () => {
             <div className="text-center py-12">
               <div className="text-6xl mb-4">🎮</div>
               <h3 className="text-xl font-semibold text-warm-textSecondary mb-2">No games found</h3>
-              <p className="text-warm-textSecondary">Try adjusting your search or filter criteria</p>
+              <p className="text-warm-textSecondary">Try adjusting your search</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

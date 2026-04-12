@@ -49,6 +49,8 @@ router.post('/register', async (req, res) => {
           lastName: user.lastName,
           coinBalance: user.coinBalance,
           totalEarned: user.totalEarned,
+          experiencePoints: user.experiencePoints ?? 0,
+          userLevel: user.userLevel ?? 1,
           badgeCount: user.badgeCount,
           role: user.role,
           couponRedemptionCounts: user.couponRedemptionCounts || {}
@@ -149,6 +151,8 @@ router.post('/login', async (req, res) => {
         lastName: user.lastName,
         coinBalance: user.coinBalance,
         totalEarned: user.totalEarned,
+        experiencePoints: user.experiencePoints ?? 0,
+        userLevel: user.userLevel ?? 1,
         badgeCount: user.badgeCount,
         role: user.role,
         couponRedemptionCounts: user.couponRedemptionCounts || {}

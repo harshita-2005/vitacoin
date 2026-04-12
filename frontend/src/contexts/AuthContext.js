@@ -188,6 +188,13 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: 'UPDATE_BALANCE', payload: { newBalance } });
   };
 
+  /** Sync total XP (and optional level) after games, puzzles, MCQs, challenges, badges, etc. */
+  const updateExperiencePoints = (experiencePoints, userLevel) => {
+    const payload = { experiencePoints };
+    if (userLevel != null) payload.userLevel = userLevel;
+    dispatch({ type: 'UPDATE_USER', payload });
+  };
+
   const updateUser = (userData) => {
     dispatch({ type: 'UPDATE_USER', payload: userData });
   };
@@ -203,6 +210,7 @@ export const AuthProvider = ({ children }) => {
     updateProfile,
     changePassword,
     updateBalance,
+    updateExperiencePoints,
     updateUser
   };
 

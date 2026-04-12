@@ -25,6 +25,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
 import CoinDisplay from '../UI/CoinDisplay';
+import XpDisplay from '../UI/XpDisplay';
 import NotificationDropdown from '../UI/NotificationDropdown';
 
 const SIDEBAR_COLLAPSED_KEY = 'vitacoin_sidebar_collapsed';
@@ -210,15 +211,17 @@ const Layout = ({ children }) => {
             </div>
 
             {/* Right side actions */}
-            <div className="flex items-center space-x-4">
-              {/* Coin Display — regular users only; admins manage the economy, not a personal balance */}
+            <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+              {/* Coins + XP — regular users only */}
               {user?.role !== 'admin' && (
                 <motion.div
                   initial={{ scale: 0.8, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ delay: 0.2 }}
+                  className="flex flex-wrap items-center gap-2"
                 >
                   <CoinDisplay balance={user?.coinBalance || 0} size="lg" premium />
+                  <XpDisplay points={user?.experiencePoints ?? 0} size="lg" />
                 </motion.div>
               )}
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FiTrendingUp, FiAward, FiActivity, FiPlay, FiMinus, FiLogOut, FiGift, FiCreditCard, FiShoppingCart, FiRepeat } from 'react-icons/fi';
+import { FiTrendingUp, FiAward, FiActivity, FiPlay, FiMinus, FiLogOut, FiGift, FiCreditCard, FiShoppingCart, FiRepeat, FiStar } from 'react-icons/fi';
 import api from '../../api/axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
@@ -184,7 +184,7 @@ const Dashboard = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5"
         >
           {/* Current Balance — stored value / balance */}
           <div className="stats-card">
@@ -217,6 +217,20 @@ const Dashboard = () => {
               <CoinDisplay balance={Math.abs(stats?.totalDeducted || 0)} size="sm" />
             </div>
             <div className="stats-label">Total Spent</div>
+          </div>
+
+          {/* Total XP — same field as leaderboard “Experience” */}
+          <div className="stats-card">
+            <div className="stats-icon !bg-indigo-50 !text-indigo-600">
+              <FiStar className="w-6 h-6" />
+            </div>
+            <div className="stats-value text-2xl font-semibold text-indigo-700 tracking-tight">
+              {(user?.experiencePoints ?? 0).toLocaleString()} <span className="text-lg font-medium text-indigo-500">XP</span>
+            </div>
+            <div className="stats-label">Total experience</div>
+            {user?.userLevel != null && (
+              <div className="text-xs text-warm-textSecondary mt-1">Level {user.userLevel}</div>
+            )}
           </div>
 
           {/* Badges Earned — achievement */}

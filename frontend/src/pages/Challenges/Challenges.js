@@ -2,11 +2,12 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiPlay, FiAward, FiClock, FiTarget, FiCheckCircle, FiXCircle, FiPause, FiRotateCcw, FiZap, FiHelpCircle, FiEye, FiX, FiSearch, FiFilter, FiHeart, FiLock } from 'react-icons/fi';
 import api from '../../api/axios';
+import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import GamePlayer from '../../components/Games/GamePlayer';
 import { INTERVIEW_PUZZLES, PUZZLE_CATEGORIES, PUZZLE_COMPANIES, getPuzzlesByCategoryAndCompany } from '../../data/interviewPuzzles';
-import { mcqDataReady, shuffleOptions, MCQ_SUBJECTS } from '../../data/mcqs';
+import { mcqDataReady, shuffleOptions } from '../../data/mcqs';
 
 /** Answer can be stored as letter "a"/"b"/"c"/"d" or as full option text. Returns true if option is correct. */
 function isMcqOptionCorrect(mcq, optionText, optionIndex) {
@@ -18,7 +19,7 @@ function isMcqOptionCorrect(mcq, optionText, optionIndex) {
 }
 
 const Challenges = () => {
-  const { user, updateBalance } = useAuth();
+  const { user, updateBalance, updateUser, updateExperiencePoints } = useAuth();
   const [challenges, setChallenges] = useState([]);
   const [, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -85,11 +86,8 @@ const Challenges = () => {
   };
   const PUZZLES_INITIAL = 5;
   const PUZZLES_INCREMENT = 10;
-  // CS Fundamentals MCQs
-  const [mcqSubject, setMcqSubject] = useState('all'); // subject tag (also used when no list filter)
-  const [mcqListFilter, setMcqListFilter] = useState(null); // null | 'favorites' | 'completed'
+  // CS Fundamentals MCQs (single pool: all subjects; sidebar = difficulty)
   const [mcqFavorites, setMcqFavorites] = useState(() => new Set());
-  const [mcqTopics, setMcqTopics] = useState([]); // multi-select: array of topic keys
   const [mcqDifficulties, setMcqDifficulties] = useState([]); // multi-select: array of 'easy'|'medium'|'hard'
   const [mcqsToShow, setMcqsToShow] = useState(5);
   const MCQ_INITIAL = 5;
@@ -109,7 +107,6 @@ const Challenges = () => {
   const [inlineMcqSelections, setInlineMcqSelections] = useState({});
   const [inlineMcqSubmitted, setInlineMcqSubmitted] = useState({});
   const [completingMcq, setCompletingMcq] = useState(false);
-  const mcqBatchRef = useRef([]);
   const [pendingMcqIds, setPendingMcqIds] = useState(new Set());
   const MCQ_REWARD_CARD_MS = 1500;
 
@@ -206,69 +203,36 @@ const Challenges = () => {
     } catch (_) {}
   }, [mcqFavorites, userId]);
 
-  const mcqTopicsForSubject = useMemo(() => mcqApi ? mcqApi.getTopicsBySubject(mcqSubject) : [{ key: 'all', label: 'All Topics' }], [mcqApi, mcqSubject]);
-
-  // Base list by subject/topic/difficulty only – no favorites dependency, so favoriting doesn’t re-shuffle or “move” the question
+  // Base list by difficulty – no favorites dependency, so favoriting doesn’t re-shuffle or “move” the question
   const baseFilteredMCQs = useMemo(() => {
     if (!mcqApi) return [];
-    const subject = mcqListFilter === 'favorites' || mcqListFilter === 'completed' ? 'all' : mcqSubject;
-    let list = mcqApi.getMCQsBySubjectAndTopic(subject, 'all');
-    if (mcqTopics.length > 0) {
-      const topicSet = new Set(mcqTopics);
-      list = list.filter(m => topicSet.has((m.topic || 'Other').trim()));
-    }
+    let list = mcqApi.getMCQsBySubjectAndTopic('all', 'all');
     if (mcqDifficulties.length > 0) {
       const diffSet = new Set(mcqDifficulties.map(d => d.toLowerCase()));
       list = list.filter(m => diffSet.has((m.difficulty || 'medium').toLowerCase()));
     }
     return list;
-  }, [mcqApi, mcqSubject, mcqTopics, mcqDifficulties, mcqListFilter]);
+  }, [mcqApi, mcqDifficulties]);
 
-  // Apply favorites/completed filter only when that view is active; otherwise same list as base (copy in favorites, don’t move)
-  const filteredMCQs = useMemo(() => {
-    if (mcqListFilter === 'favorites') return baseFilteredMCQs.filter(m => mcqFavorites.has(m.id));
-    if (mcqListFilter === 'completed') return baseFilteredMCQs.filter(m => completedMcqIds.has(m.id) || pendingMcqIds.has(m.id));
-    return baseFilteredMCQs;
-  }, [baseFilteredMCQs, mcqListFilter, mcqFavorites, completedMcqIds, pendingMcqIds]);
+  const filteredMCQs = baseFilteredMCQs;
 
   const displayedMcqs = useMemo(() => {
     return filteredMCQs.slice(0, mcqsToShow).map(m => shuffleOptions({ ...m }));
   }, [filteredMCQs, mcqsToShow]);
 
-  // Flush MCQ batch only when leaving the page so all subjects (OS, CN, etc.) become one Coin Activity card
-  useEffect(() => {
-    const batchRef = mcqBatchRef;
-    return () => {
-      const pending = batchRef.current;
-      if (pending.length > 0) {
-        api.post('/api/mcqs/complete-batch', { items: pending }).catch(() => {});
-      }
-    };
-  }, []);
-
   // Reset inline MCQ state only when filters change, not when "Show more" is clicked
   useEffect(() => {
     setInlineMcqSelections({});
     setInlineMcqSubmitted({});
-  }, [mcqSubject, mcqTopics, mcqDifficulties, mcqListFilter]);
+  }, [mcqDifficulties]);
 
   useEffect(() => {
     setPuzzlesToShow(PUZZLES_INITIAL);
   }, [puzzleFilter, companyFilter, difficultyFilter, searchQuery]);
 
   useEffect(() => {
-    setMcqTopics([]);
-  }, [mcqSubject]);
-
-  useEffect(() => {
     setMcqsToShow(MCQ_INITIAL);
-  }, [mcqSubject, mcqTopics, mcqDifficulties, mcqListFilter]);
-
-  const showTopicFilter =
-    mcqSubject &&
-    mcqSubject !== 'all' &&
-    mcqListFilter !== 'favorites' &&
-    mcqListFilter !== 'completed';
+  }, [mcqDifficulties]);
 
   const mcqDifficultyCounts = useMemo(() => {
     const counts = { easy: 0, medium: 0, hard: 0 };
@@ -286,22 +250,57 @@ const Challenges = () => {
     setMcqSubmitted(false);
   };
 
-  const handleMcqComplete = (mcq) => {
+  const handleMcqComplete = async (mcq) => {
     if (!mcq || completingMcq) return;
     if (completedMcqIds.has(mcq.id) || pendingMcqIds.has(mcq.id)) return;
+    if (!user) {
+      toast.error('Sign in to earn Vitacoins for correct answers.');
+      return;
+    }
     setCompletingMcq(true);
     const reward = mcq.reward ?? 10;
-    mcqBatchRef.current.push({
-      mcqId: mcq.id,
-      reward,
-      subject: mcq.subject
-    });
     setPendingMcqIds(prev => new Set([...prev, mcq.id]));
-    setRewardCard({ show: true, coins: reward });
-    setTimeout(() => {
-      setRewardCard(r => ({ ...r, show: false }));
+    try {
+      const res = await api.post('/api/mcqs/complete', {
+        mcqId: mcq.id,
+        reward,
+        subject: mcq.subject
+      });
+      const coinsAwarded = res.data?.coinsAwarded ?? reward;
+      if (typeof res.data?.newBalance === 'number') updateBalance(res.data.newBalance);
+      if (typeof res.data?.newExperiencePoints === 'number') {
+        updateExperiencePoints(res.data.newExperiencePoints, res.data?.userLevel);
+      }
+      if (typeof coinsAwarded === 'number') {
+        updateUser({ totalEarned: (user.totalEarned || 0) + coinsAwarded });
+      }
+      setCompletedMcqIds(prev => new Set([...prev, mcq.id]));
+      setPendingMcqIds(prev => {
+        const next = new Set(prev);
+        next.delete(mcq.id);
+        return next;
+      });
+      setRewardCard({ show: true, coins: coinsAwarded });
+      setTimeout(() => {
+        setRewardCard(r => ({ ...r, show: false }));
+        setCompletingMcq(false);
+      }, MCQ_REWARD_CARD_MS);
+    } catch (err) {
+      const status = err.response?.status;
+      const data = err.response?.data;
+      setPendingMcqIds(prev => {
+        const next = new Set(prev);
+        next.delete(mcq.id);
+        return next;
+      });
+      if (status === 400 && data?.alreadyCompleted) {
+        setCompletedMcqIds(prev => new Set([...prev, mcq.id]));
+        setCompletingMcq(false);
+        return;
+      }
+      toast.error(data?.error || 'Could not save MCQ reward');
       setCompletingMcq(false);
-    }, MCQ_REWARD_CARD_MS);
+    }
   };
 
   const handleMcqSubmit = () => {
@@ -310,8 +309,8 @@ const Challenges = () => {
     const idx = selectedMcq.options.indexOf(mcqSelectedOption);
     const correct = idx >= 0 && isMcqOptionCorrect(selectedMcq, mcqSelectedOption, idx);
     if (correct) {
-      handleMcqComplete(selectedMcq);
       closeMcqModal();
+      void handleMcqComplete(selectedMcq);
     }
   };
 
@@ -321,7 +320,7 @@ const Challenges = () => {
     setInlineMcqSubmitted(prev => ({ ...prev, [mcq.id]: true }));
     const opt = mcq.options[idx];
     const correct = isMcqOptionCorrect(mcq, opt, idx);
-    if (correct) handleMcqComplete(mcq);
+    if (correct) void handleMcqComplete(mcq);
   };
 
   const toggleMcqFavorite = (mcqId, e) => {
@@ -482,6 +481,9 @@ const Challenges = () => {
       const res = await api.post('/api/puzzles/complete', { puzzleId: selectedPuzzle.id });
       const coins = res.data?.coinsAwarded ?? selectedPuzzle.reward ?? 0;
       if (res.data?.newBalance != null) updateBalance(res.data.newBalance);
+      if (typeof res.data?.newExperiencePoints === 'number') {
+        updateExperiencePoints(res.data.newExperiencePoints, res.data?.userLevel);
+      }
       setCompletedPuzzleIds(prev => new Set([...prev, selectedPuzzle.id]));
       closePuzzleModal();
       setRewardCard({ show: true, coins });
@@ -619,6 +621,10 @@ const Challenges = () => {
         if (response.data.success) {
           // Show success message with rewards
           const rewards = response.data.rewards;
+          if (typeof response.data.newBalance === 'number') updateBalance(response.data.newBalance);
+          if (typeof response.data.newExperiencePoints === 'number') {
+            updateExperiencePoints(response.data.newExperiencePoints, response.data.userLevel);
+          }
           alert(`🎉 Challenge Completed Successfully!\n\n🏆 Score: ${result.score}\n⏱️ Time: ${timer.elapsed}s\n💰 Coins Earned: +${rewards.coins}\n⭐ XP Earned: +${rewards.experience}`);
           
           // Remove from active challenges
@@ -1077,44 +1083,12 @@ const Challenges = () => {
         </motion.div>
         </div>
 
-        {/* Section: CS Fundamentals – tags (subjects + Favorites + Completed), then two columns */}
+        {/* Section: CS Fundamentals – filters in sidebar */}
         <div ref={csFundamentalsSectionRef} className="scroll-mt-6">
         <h2 className="text-3xl font-bold text-warm-text mb-4 flex items-center gap-2 mt-10">
           <FiAward className="w-8 h-8 text-warm-primary" />
           CS Fundamentals
         </h2>
-        {/* Tag bar: subjects as tags + Favorites + Completed */}
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          {MCQ_SUBJECTS.filter(s => s.key !== 'OOP' && s.key !== 'Misc').map((sub) => (
-            <button
-              key={sub.key}
-              onClick={() => { setMcqSubject(sub.key); setMcqListFilter(null); }}
-              className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                mcqSubject === sub.key && !mcqListFilter
-                  ? 'bg-warm-primary text-white'
-                  : 'bg-white text-warm-text border border-warm-border hover:bg-warm-container'
-              }`}
-            >
-              {sub.label}
-            </button>
-          ))}
-          <button
-            onClick={() => setMcqListFilter(mcqListFilter === 'favorites' ? null : 'favorites')}
-            className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${
-              mcqListFilter === 'favorites' ? 'bg-warm-primary text-white' : 'bg-white text-warm-text border border-warm-border hover:bg-warm-container'
-            }`}
-          >
-            <FiHeart className="w-4 h-4" /> Favorites
-          </button>
-          <button
-            onClick={() => setMcqListFilter(mcqListFilter === 'completed' ? null : 'completed')}
-            className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${
-              mcqListFilter === 'completed' ? 'bg-warm-primary text-white' : 'bg-white text-warm-text border border-warm-border hover:bg-warm-container'
-            }`}
-          >
-            <FiCheckCircle className="w-4 h-4" /> Completed
-          </button>
-        </div>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1250,9 +1224,9 @@ const Challenges = () => {
             </div>
           </div>
 
-          {/* Right: Filter sidebar – flexible height for All/Favorites/Completed (only Difficulty); fixed height when subject has Topic + Difficulty */}
-          <aside className={`lg:w-80 shrink-0 ${showTopicFilter ? 'flex flex-col h-[72vh] min-h-[520px] max-h-[800px]' : ''}`}>
-            <div className={`rounded-xl border border-warm-border bg-white shadow-md overflow-hidden sticky top-4 ${showTopicFilter ? 'flex flex-col flex-1 min-h-0' : ''}`}>
+          {/* Right: difficulty filter */}
+          <aside className="lg:w-80 shrink-0">
+            <div className="rounded-xl border border-warm-border bg-white shadow-md overflow-hidden sticky top-4">
               <div className="shrink-0 px-4 py-3 border-b border-warm-border bg-warm-container/40 flex items-center justify-between gap-3">
                 <span className="flex items-center gap-2 text-sm font-semibold text-warm-text uppercase tracking-wider">
                   <FiFilter className="w-4 h-4 shrink-0" />
@@ -1260,40 +1234,15 @@ const Challenges = () => {
                 </span>
                 <button
                   type="button"
-                  onClick={() => { setMcqTopics([]); setMcqDifficulties([]); }}
-                  disabled={mcqTopics.length === 0 && mcqDifficulties.length === 0}
-                  className={`text-sm font-semibold shrink-0 hover:underline disabled:opacity-50 disabled:cursor-default disabled:no-underline ${mcqTopics.length > 0 || mcqDifficulties.length > 0 ? 'text-black' : 'text-warm-textSecondary'}`}
+                  onClick={() => setMcqDifficulties([])}
+                  disabled={mcqDifficulties.length === 0}
+                  className={`text-sm font-semibold shrink-0 hover:underline disabled:opacity-50 disabled:cursor-default disabled:no-underline ${mcqDifficulties.length > 0 ? 'text-black' : 'text-warm-textSecondary'}`}
                 >
                   Clear filters
                 </button>
               </div>
-              <div className={showTopicFilter ? 'flex-1 min-h-0 overflow-y-auto flex flex-col p-0' : 'p-0'}>
-                {/* TOPIC – only when subject selected */}
-                {showTopicFilter && (
-                  <div className="p-4 border-b border-warm-border flex-1 min-h-0 flex flex-col">
-                    <p className="text-sm font-semibold uppercase tracking-wider mb-1.5 text-warm-text">Topic</p>
-                    <p className="text-sm text-warm-textSecondary mb-2">Select one or more</p>
-                    <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
-                      {mcqTopicsForSubject.filter(t => t.key !== 'all').map((t) => {
-                        const checked = mcqTopics.includes(t.key);
-                        return (
-                          <label key={t.key} className="flex items-center gap-2 cursor-pointer group py-1 pr-1">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => setMcqTopics(prev => checked ? prev.filter(k => k !== t.key) : [...prev, t.key])}
-                              className="w-4 h-4 rounded border-warm-border text-warm-primary focus:ring-warm-primary shrink-0"
-                            />
-                            <span className="text-base text-warm-text group-hover:text-warm-primary">{t.label}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-                {/* Spacer so DIFFICULTY sits at bottom and empty space isn’t wasted below it */}
-                {/* DIFFICULTY – with counts */}
-                <div className="px-4 py-3 shrink-0 border-t border-warm-border">
+              <div className="p-0">
+                <div className="px-4 py-3 shrink-0">
                   <p className="text-sm font-semibold uppercase tracking-wider mb-1 text-warm-text">Difficulty</p>
                   <p className="text-sm text-warm-textSecondary mb-1.5">Select one or more</p>
                   <div className="space-y-1.5">

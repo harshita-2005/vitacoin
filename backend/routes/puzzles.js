@@ -7,6 +7,7 @@ const router = express.Router();
 const { protect } = require('../middleware/auth');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
+const { addXpAndLevel } = require('../utils/xpUser');
 
 // Valid puzzle IDs and coin rewards (must match frontend interviewPuzzles.js ids)
 const PUZZLE_REWARDS = {
@@ -90,6 +91,8 @@ router.post('/complete', protect, async (req, res) => {
     user.completedPuzzles.push({ puzzleId, completedAt: new Date() });
     user.coinBalance = balanceBefore + reward;
     user.totalEarned = (user.totalEarned || 0) + reward;
+    const xpAwarded = Math.min(50, Math.max(8, Math.round(reward * 0.4)));
+    addXpAndLevel(user, xpAwarded);
     await user.save();
 
     await Transaction.create({
@@ -107,7 +110,10 @@ router.post('/complete', protect, async (req, res) => {
       success: true,
       puzzleId,
       coinsAwarded: reward,
+      xpAwarded,
       newBalance: user.coinBalance,
+      newExperiencePoints: user.experiencePoints,
+      userLevel: user.userLevel,
       message: `Puzzle completed! +${reward} coins awarded.`
     });
   } catch (error) {
