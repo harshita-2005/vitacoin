@@ -103,7 +103,9 @@ setupSocketHandlers(io);
 
 app.set('io', io);
 notificationService.setSocketIo(io);
-
+app.get('/', (req, res) => {
+  res.send('🚀 Vitacoin Backend is Live');
+});
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
