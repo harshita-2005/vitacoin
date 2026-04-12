@@ -2,8 +2,8 @@
 """
 Sanfoundry MCQ Crawler – collects MCQs from Sanfoundry by subject.
 Run locally: pip install requests beautifulsoup4 tqdm lxml
-Then: python scripts/sanfoundry_mcq_crawler.py
-Output: scripts/cs_mcq_dataset.json (then run convert_mcq_to_app_format.py)
+Then: python backend/tooling/mcq-dataset/sanfoundry_mcq_crawler.py
+Output: backend/tooling/mcq-dataset/cs_mcq_dataset.json (then run convert_mcq_to_app_format.py)
 """
 import requests
 from bs4 import BeautifulSoup
@@ -149,7 +149,7 @@ def main():
 
     print(f"Total MCQs collected: {len(mcq_dataset)}")
     print(f"Saved to: {out_path}")
-    print("\nNext: run  python scripts/convert_mcq_to_app_format.py")
+    print("\nNext: run  python backend/tooling/mcq-dataset/convert_mcq_to_app_format.py")
 
 
 if __name__ == "__main__":

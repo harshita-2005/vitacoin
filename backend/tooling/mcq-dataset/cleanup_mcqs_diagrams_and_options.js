@@ -1,11 +1,12 @@
 /**
  * Cleanup MCQs: remove diagram-dependent questions, remove same/meaningless options,
- * fix unbalanced parentheses in options. Run: node scripts/cleanup_mcqs_diagrams_and_options.js
+ * fix unbalanced parentheses in options. Run from repo root:
+ * node backend/tooling/mcq-dataset/cleanup_mcqs_diagrams_and_options.js
  */
 const fs = require('fs');
 const path = require('path');
 
-const jsonPath = path.join(__dirname, '../frontend/public/data/app_mcqs.json');
+const jsonPath = path.join(__dirname, '../../../frontend/public/data/app_mcqs.json');
 const data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
 
 function isDiagramDependent(m) {

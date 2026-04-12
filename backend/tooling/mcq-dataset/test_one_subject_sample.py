@@ -4,8 +4,8 @@ Full MCQ crawl using the same working logic as the single-page test.
 - Uses Selenium (get_driver + scrape_one_page) for all 5 subjects and their sublinks.
 - For Algorithms (DAA), only sublinks matching DAA_ALLOWED_TOPICS are followed.
 - Saves after each subject; recreates driver after each subject to avoid crashes.
-Run: python scripts/test_one_subject_sample.py
-Then: python scripts/convert_mcq_to_app_format.py
+Run: python backend/tooling/mcq-dataset/test_one_subject_sample.py
+Then: python backend/tooling/mcq-dataset/convert_mcq_to_app_format.py
 """
 import json
 import sys
@@ -161,7 +161,7 @@ def main():
         e = m.get("explanation") or ""
         print("explanation:", e[:80] + ("..." if len(e) > 80 else ""))
         print()
-    print("Next: run  python scripts/convert_mcq_to_app_format.py")
+    print("Next: run  python backend/tooling/mcq-dataset/convert_mcq_to_app_format.py")
 
 
 if __name__ == "__main__":

@@ -604,7 +604,9 @@ const PlayGames = () => {
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-warm-primary">
-                    {new Date(user?.lastLogin).toLocaleDateString()}
+                    {user?.lastLogin && !Number.isNaN(new Date(user.lastLogin).getTime())
+ ? new Date(user.lastLogin).toLocaleDateString()
+                    : '—'}
                   </div>
                   <div className="text-sm text-warm-textSecondary">Last Login</div>
                 </div>

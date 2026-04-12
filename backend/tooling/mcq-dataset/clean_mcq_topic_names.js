@@ -5,7 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const jsonPath = path.join(__dirname, '../frontend/public/data/app_mcqs.json');
+const jsonPath = path.join(__dirname, '../../../frontend/public/data/app_mcqs.json');
 const data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
 
 function cleanTopic(t) {

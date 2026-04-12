@@ -1,13 +1,13 @@
 /**
  * Verify MCQ answers: valid format (answer a–d, 4 options), and detect explanation
  * vs answer mismatches (only when explanation explicitly says "correct option is X").
- * Run: node scripts/verify_mcq_answers.js
+ * Run: node backend/tooling/mcq-dataset/verify_mcq_answers.js
  * All subjects: CN, DBMS, DSA, OS, Algorithms – 4220 MCQs verified.
  */
 const fs = require('fs');
 const path = require('path');
 
-const jsonPath = path.join(__dirname, '../frontend/public/data/app_mcqs.json');
+const jsonPath = path.join(__dirname, '../../../frontend/public/data/app_mcqs.json');
 const data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
 
 const issues = [];

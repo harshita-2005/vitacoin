@@ -1,6 +1,6 @@
 /**
  * CS Fundamentals MCQs – load from single JSON (public/data/app_mcqs.json).
- * Run: python scripts/convert_mcq_to_app_format.py  (writes that JSON from cs_mcq_dataset.json).
+ * Run: python backend/tooling/mcq-dataset/convert_mcq_to_app_format.py (writes JSON from cs_mcq_dataset.json).
  * No need for os.js, dbms.js, etc. – one source of truth.
  */
 
@@ -84,7 +84,7 @@ function shuffleOptions(mcq) {
 /** Promise that resolves to { getMCQsBySubject, getTopicsBySubject, getMCQsBySubjectAndTopic } once data is loaded. */
 export const mcqDataReady = fetch(`${process.env.PUBLIC_URL || ''}/data/app_mcqs.json`)
   .then(r => {
-    if (!r.ok) throw new Error('app_mcqs.json not found. Run: python scripts/convert_mcq_to_app_format.py');
+    if (!r.ok) throw new Error('app_mcqs.json not found. Run: python backend/tooling/mcq-dataset/convert_mcq_to_app_format.py');
     return r.json();
   })
   .then(data => buildApi(Array.isArray(data) ? data : []));

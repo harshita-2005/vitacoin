@@ -56,15 +56,17 @@ if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
   console.error('Error: JWT_SECRET must be set in production');
 }
 
-mongoose.connect(mongoUri, {
-  serverSelectionTimeoutMS: 10000,
-  socketTimeoutMS: 45000
-})
-  .then(() => {
+async function connectDbAndBootstrap() {
+  try {
+    await mongoose.connect(mongoUri, {
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000
+    });
     console.log('MongoDB connected successfully');
     console.log('Database:', mongoose.connection.name);
-  })
-  .catch((err) => {
+    const { ensureDefaultGamesIfEmpty } = require('./services/gameBootstrap');
+    await ensureDefaultGamesIfEmpty();
+  } catch (err) {
     console.error('MongoDB connection error:', err.message);
     if (process.env.NODE_ENV === 'development') {
       console.error('Connection string:', mongoUri.substring(0, 30) + '...');
@@ -74,7 +76,9 @@ mongoose.connect(mongoUri, {
       console.error('3. Verify database user has read/write permissions');
       console.error('4. Check if password has special characters (need URL encoding)');
     }
-  });
+    throw err;
+  }
+}
 
 // Security: allow cross-origin fetches to this API (frontend on Vercel)
 app.use(helmet({
@@ -165,11 +169,20 @@ app.use('*', (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-server.listen(PORT, () => {
-  console.log(`Vitacoin server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`API: http://localhost:${PORT}/api`);
-  console.log(`WebSocket: ws://localhost:${PORT}`);
-});
+async function startServer() {
+  try {
+    await connectDbAndBootstrap();
+  } catch (e) {
+    console.error('Database unavailable at startup — API may return errors until MongoDB is reachable.');
+  }
+  server.listen(PORT, () => {
+    console.log(`Vitacoin server running on port ${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`API: http://localhost:${PORT}/api`);
+    console.log(`WebSocket: ws://localhost:${PORT}`);
+  });
+}
+
+startServer();
 
 module.exports = { app, server, io };

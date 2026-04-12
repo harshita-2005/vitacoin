@@ -6,7 +6,7 @@ This folder contains scripts to **collect MCQs from Sanfoundry** and convert the
 
 ```bash
 cd E:\fouth_yr_projects\Vitacoin_User_interface_rewards_and_transactions
-pip install -r scripts/requirements.txt
+pip install -r backend/tooling/mcq-dataset/requirements.txt
 ```
 
 This installs `requests`, `beautifulsoup4`, `lxml` (for the requests crawler) and optionally `selenium`, `webdriver-manager` (for the Selenium fallback). **No browser is required** for the requests crawler.
@@ -17,16 +17,16 @@ This installs `requests`, `beautifulsoup4`, `lxml` (for the requests crawler) an
 
 ```bash
 cd E:\fouth_yr_projects\Vitacoin_User_interface_rewards_and_transactions
-python scripts/sanfoundry_mcq_crawler_requests.py
+python backend/tooling/mcq-dataset/sanfoundry_mcq_crawler_requests.py
 ```
 
 Then convert to app format:
 
 ```bash
-python scripts/convert_mcq_to_app_format.py
+python backend/tooling/mcq-dataset/convert_mcq_to_app_format.py
 ```
 
-- **Output:** `scripts/cs_mcq_dataset.json` → then `frontend/src/data/mcqs/*.js`.
+- **Output:** `backend/tooling/mcq-dataset/cs_mcq_dataset.json` → then `frontend/public/data/app_mcqs.json`.
 
 If you get **403 Forbidden**, use the Selenium crawler instead (see section 4 below).
 
@@ -49,11 +49,11 @@ If you get **403 Forbidden**, use the Selenium crawler instead (see section 4 be
 ## 4. Convert to app format
 
 ```bash
-python scripts/convert_mcq_to_app_format.py
+python backend/tooling/mcq-dataset/convert_mcq_to_app_format.py
 ```
 
-- **Input:** `scripts/cs_mcq_dataset.json`
-- **Output:** `frontend/src/data/mcqs/os.js`, `dbms.js`, `cn.js`, `dsa.js`, `misc.js` (per-subject JS modules with `id`, `difficulty`, `reward`, deduplication, and 4 options per question).
+- **Input:** `backend/tooling/mcq-dataset/cs_mcq_dataset.json`
+- **Output:** `frontend/public/data/app_mcqs.json` (single JSON; the app loads it at runtime).
 
 The converter:
 
@@ -62,11 +62,11 @@ The converter:
 - Assigns `id`, `difficulty` (easy/medium/hard), and `reward` (10/12/15).
 - Ensures each MCQ has exactly 4 options.
 
-After this, restart the frontend dev server so it picks up the new `frontend/src/data/mcqs/*.js` files.
+After this, restart the frontend dev server so it picks up the new `frontend/public/data/app_mcqs.json`.
 
 ## 5. Optional: add more subjects
 
-Edit `scripts/sanfoundry_mcq_crawler_requests.py` and add more entries to `START_PAGES`, for example:
+Edit `backend/tooling/mcq-dataset/sanfoundry_mcq_crawler_requests.py` and add more entries to `START_PAGES`, for example:
 
 ```python
 ("https://www.sanfoundry.com/1000-algorithms-questions-answers/", "Algorithms"),
@@ -81,8 +81,8 @@ Use the **Selenium crawler** instead – it drives a real Chrome browser (headle
 
 ```bash
 pip install selenium webdriver-manager
-python scripts/sanfoundry_mcq_crawler_selenium.py
-python scripts/convert_mcq_to_app_format.py
+python backend/tooling/mcq-dataset/sanfoundry_mcq_crawler_selenium.py
+python backend/tooling/mcq-dataset/convert_mcq_to_app_format.py
 ```
 
 Chrome or Chromium must be installed; `webdriver-manager` downloads the matching ChromeDriver. Same subjects and output format; use it only if the requests crawler is blocked.

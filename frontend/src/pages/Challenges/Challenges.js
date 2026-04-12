@@ -1139,7 +1139,7 @@ const Challenges = () => {
               ) : !mcqApi ? (
                 <div className="py-16 text-center text-warm-textSecondary px-4">
                   <p className="font-medium text-warm-text mb-2">MCQ data not found.</p>
-                  <p className="text-sm">Run: <code className="bg-warm-container px-1.5 py-0.5 rounded">python scripts/convert_mcq_to_app_format.py</code></p>
+                  <p className="text-sm">Run: <code className="bg-warm-container px-1.5 py-0.5 rounded">python backend/tooling/mcq-dataset/convert_mcq_to_app_format.py</code></p>
                 </div>
               ) : displayedMcqs.length === 0 ? (
                 <div className="py-16 text-center text-warm-textSecondary text-base">No MCQs match your filters.</div>

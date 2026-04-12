@@ -55,8 +55,10 @@ backend/
 ├── middleware/            # Custom middleware (auth, validation)
 ├── services/              # Business logic services
 ├── socket/                # Socket.IO event handlers
-├── scripts/               # Utility scripts (admin creation, seeding)
-└── seed files             # Database seeding scripts
+├── scripts/               # Admin CLI (createAdmin, demo user, etc.)
+├── tooling/mcq-dataset/   # Optional: MCQ crawler (local dev only)
+├── data/                  # Shared defaults (e.g. defaultGames)
+└── seed*.js               # Database seeding scripts
 ```
 
 #### **Key Backend Files:**

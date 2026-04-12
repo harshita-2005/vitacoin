@@ -161,8 +161,9 @@ frontend/src/
 backend/
 ├── routes/
 │   └── admin.js
-├── scripts/
-│   └── createAdmin.js
+├── scripts/              # Admin CLI (createAdmin, etc.)
+├── tooling/mcq-dataset/  # Local MCQ crawler & converter (not used at runtime)
+├── data/defaultGames.js
 └── server.js
 ```
 

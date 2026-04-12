@@ -9,8 +9,9 @@ from pathlib import Path
 from collections import defaultdict
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent.parent.parent
 INPUT_PATH = SCRIPT_DIR / "cs_mcq_dataset.json"
-PUBLIC_DATA_DIR = SCRIPT_DIR.parent / "frontend" / "public" / "data"
+PUBLIC_DATA_DIR = REPO_ROOT / "frontend" / "public" / "data"
 
 # Map crawler subject names to our app keys
 SUBJECT_MAP = {

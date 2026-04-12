@@ -21,7 +21,7 @@ routes/          → API endpoints (auth, users, transactions, badges, admin, et
 middleware/      → Authentication, authorization
 services/        → Business logic (badgeService)
 socket/          → Real-time event handlers
-scripts/         → Admin creation, seeding utilities
+backend/scripts/ → Admin creation utilities; backend/tooling/mcq-dataset/ → MCQ crawler (local only)
 seed files       → Database initialization
 ```
 

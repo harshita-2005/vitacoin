@@ -4,7 +4,7 @@ Sanfoundry MCQ Crawler (Selenium) – follows chapter/sub-topic links to get 500
 - Parses question vs options from combined text (a) b) c) d)) and strips "View Answer".
 - Clicks "View Answer" to capture answer/explanation when possible.
 - Hierarchy: subject (e.g. OS) -> topic (e.g. Processes) -> MCQs.
-Output: scripts/cs_mcq_dataset.json (then run convert_mcq_to_app_format.py)
+Output: backend/tooling/mcq-dataset/cs_mcq_dataset.json (then run convert_mcq_to_app_format.py)
 """
 import json
 import re
@@ -521,7 +521,7 @@ def main():
         print(f"\nError (browser may have closed or connection lost): {e}")
         print(f"Saved {len(mcq_dataset)} MCQs to {out_path}")
         print("To resume, set START_FROM_SUBJECT = '<next_subject>' in the script and run again.")
-        print("Then run:  python scripts/convert_mcq_to_app_format.py")
+        print("Then run:  python backend/tooling/mcq-dataset/convert_mcq_to_app_format.py")
         sys.exit(1)
     finally:
         if driver:
@@ -533,7 +533,7 @@ def main():
     _save_dataset(out_path)
     print(f"Total MCQs collected: {len(mcq_dataset)}")
     print(f"Saved to: {out_path}")
-    print("\nNext: run  python scripts/convert_mcq_to_app_format.py")
+    print("\nNext: run  python backend/tooling/mcq-dataset/convert_mcq_to_app_format.py")
 
 
 if __name__ == "__main__":
