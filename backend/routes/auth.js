@@ -2,7 +2,16 @@ const express = require('express');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
 const { protect, generateToken } = require('../middleware/auth');
+const { setAuthCookie, clearAuthCookie } = require('../utils/authCookie');
 const router = express.Router();
+
+// @desc    Log out (clear httpOnly auth cookie)
+// @route   POST /api/auth/logout
+// @access  Public
+router.post('/logout', (req, res) => {
+  clearAuthCookie(res);
+  res.json({ message: 'Logged out successfully' });
+});
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -30,6 +39,7 @@ router.post('/register', async (req, res) => {
 
     if (user) {
       const token = generateToken(user._id);
+      setAuthCookie(res, token);
       res.status(201).json({
         user: {
           _id: user._id,
@@ -42,8 +52,7 @@ router.post('/register', async (req, res) => {
           badgeCount: user.badgeCount,
           role: user.role,
           couponRedemptionCounts: user.couponRedemptionCounts || {}
-        },
-        token: token
+        }
       });
     } else {
       res.status(400).json({ error: 'Invalid user data' });
@@ -129,6 +138,7 @@ router.post('/login', async (req, res) => {
     await user.save();
 
     const token = generateToken(user._id);
+    setAuthCookie(res, token);
     res.json({
       user: {
         _id: user._id,
@@ -141,8 +151,7 @@ router.post('/login', async (req, res) => {
         badgeCount: user.badgeCount,
         role: user.role,
         couponRedemptionCounts: user.couponRedemptionCounts || {}
-      },
-      token: token
+      }
     });
   } catch (error) {
     console.error('Login error:', error);

@@ -1,39 +1,49 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { getTokenFromCookieHeader } = require('../utils/authCookie');
+
+function extractToken(req) {
+  const auth = req.headers.authorization;
+  if (auth && auth.startsWith('Bearer')) {
+    return auth.split(' ')[1];
+  }
+  return getTokenFromCookieHeader(req.headers.cookie);
+}
+
+function jwtErrorResponse(res, error) {
+  if (error.name === 'TokenExpiredError') {
+    return res.status(401).json({ error: 'Not authorized, token expired' });
+  }
+  if (error.name === 'JsonWebTokenError') {
+    return res.status(401).json({ error: 'Not authorized, invalid token' });
+  }
+  return res.status(401).json({ error: 'Not authorized, token verification failed' });
+}
 
 // Middleware to protect routes
 const protect = async (req, res, next) => {
-  let token;
-
-  // Check for token in headers
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-    try {
-      // Get token from header
-      token = req.headers.authorization.split(' ')[1];
-
-      // Verify token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-      // Get user from token
-      req.user = await User.findById(decoded.id).select('-password');
-
-      if (!req.user) {
-        return res.status(401).json({ error: 'User not found' });
-      }
-
-      if (!req.user.isActive) {
-        return res.status(401).json({ error: 'User account is deactivated' });
-      }
-
-      next();
-    } catch (error) {
-      console.error('Token verification error:', error);
-      return res.status(401).json({ error: 'Not authorized, token failed' });
-    }
-  }
+  const token = extractToken(req);
 
   if (!token) {
     return res.status(401).json({ error: 'Not authorized, no token' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = await User.findById(decoded.id).select('-password');
+
+    if (!req.user) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    if (!req.user.isActive) {
+      return res.status(401).json({ error: 'User account is deactivated' });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Token verification error:', error.message);
+    return jwtErrorResponse(res, error);
   }
 };
 
@@ -55,11 +65,21 @@ const adminOrModerator = (req, res, next) => {
   }
 };
 
+function extractSocketToken(socket) {
+  const fromAuth = socket.handshake.auth?.token;
+  if (fromAuth) return fromAuth;
+  const header = socket.handshake.headers?.authorization;
+  if (header && header.startsWith('Bearer')) {
+    return header.split(' ')[1];
+  }
+  return getTokenFromCookieHeader(socket.handshake.headers?.cookie);
+}
+
 // Socket.IO authentication middleware
 const authenticateSocket = async (socket, next) => {
   try {
-    const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.split(' ')[1];
-    
+    const token = extractSocketToken(socket);
+
     if (!token) {
       return next(new Error('Authentication error: No token provided'));
     }
@@ -78,7 +98,7 @@ const authenticateSocket = async (socket, next) => {
     socket.user = user;
     next();
   } catch (error) {
-    console.error('Socket authentication error:', error);
+    console.error('Socket authentication error:', error.message);
     return next(new Error('Authentication error: Invalid token'));
   }
 };
@@ -95,5 +115,6 @@ module.exports = {
   admin,
   adminOrModerator,
   authenticateSocket,
-  generateToken
+  generateToken,
+  extractToken
 };

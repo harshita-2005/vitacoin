@@ -4,11 +4,14 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const http = require('http');
 const socketIo = require('socket.io');
+
+const { getCorsOptions, getSocketIoCorsConfig } = require('./config/cors');
 
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
@@ -34,79 +37,85 @@ const { setupSocketHandlers } = require('./socket/socketHandlers');
 const app = express();
 const server = http.createServer(app);
 
-// Trust proxy for rate limiting (fixes X-Forwarded-For warning)
+// Render / reverse proxy: trust X-Forwarded-* for rate limiting and secure cookies
 app.set('trust proxy', 1);
 
 const io = socketIo(server, {
-  cors: {
-    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
-    methods: ["GET", "POST"]
-  }
+  cors: getSocketIoCorsConfig()
 });
 
 // Connect to MongoDB
 const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/vitacoin';
 
-// Only show debug in development if connection fails
 if (!process.env.MONGODB_URI && process.env.NODE_ENV === 'development') {
-  console.warn('⚠️  MONGODB_URI not found in .env file');
-  console.warn('💡 Make sure .env file exists in backend/ folder');
+  console.warn('Warning: MONGODB_URI not found in .env file');
+  console.warn('Make sure .env file exists in backend/ folder');
+}
+
+if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+  console.error('Error: JWT_SECRET must be set in production');
 }
 
 mongoose.connect(mongoUri, {
-  serverSelectionTimeoutMS: 10000, // Timeout for Atlas connection
-  socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+  serverSelectionTimeoutMS: 10000,
+  socketTimeoutMS: 45000
 })
-.then(() => {
-  console.log('✅ MongoDB connected successfully');
-  console.log('✅ Database:', mongoose.connection.name);
-})
-.catch(err => {
-  console.error('❌ MongoDB connection error:', err.message);
-  if (process.env.NODE_ENV === 'development') {
-    console.error('💡 Connection string:', mongoUri.substring(0, 30) + '...');
-    console.error('\n🔧 Troubleshooting:');
-    console.error('1. Verify MONGODB_URI in .env file');
-    console.error('2. Check MongoDB Atlas Network Access (should allow 0.0.0.0/0)');
-    console.error('3. Verify database user has read/write permissions');
-    console.error('4. Check if password has special characters (need URL encoding)');
-  }
-});
+  .then(() => {
+    console.log('MongoDB connected successfully');
+    console.log('Database:', mongoose.connection.name);
+  })
+  .catch((err) => {
+    console.error('MongoDB connection error:', err.message);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Connection string:', mongoUri.substring(0, 30) + '...');
+      console.error('\nTroubleshooting:');
+      console.error('1. Verify MONGODB_URI in .env file');
+      console.error('2. Check MongoDB Atlas Network Access (should allow 0.0.0.0/0)');
+      console.error('3. Verify database user has read/write permissions');
+      console.error('4. Check if password has special characters (need URL encoding)');
+    }
+  });
 
-// Security middleware
-app.use(helmet());
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || "http://localhost:3000",
-  credentials: true
+// Security: allow cross-origin fetches to this API (frontend on Vercel)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
-});
-app.use('/api/', limiter);
+app.use(cors(getCorsOptions()));
+app.options('*', cors(getCorsOptions()));
 
-// Logging middleware
+app.use(cookieParser());
+
+// Rate limiting (skip health check for load balancers / Render)
+const limiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 100,
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { trustProxy: true }
+});
+
+app.use('/api', (req, res, next) => {
+  if (req.path === '/health') return next();
+  return limiter(req, res, next);
+});
+
 app.use(morgan('combined'));
 
-// Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Socket.IO authentication middleware
 io.use(authenticateSocket);
-
-// Setup Socket.IO handlers
 setupSocketHandlers(io);
 
 app.set('io', io);
 notificationService.setSocketIo(io);
+
 app.get('/', (req, res) => {
-  res.send('🚀 Vitacoin Backend is Live');
+  res.send('Vitacoin Backend is Live');
 });
-// API Routes
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/transactions', transactionRoutes);
@@ -124,25 +133,32 @@ app.use('/api/puzzles', puzzleRoutes);
 app.use('/api/mcqs', mcqRoutes);
 app.use('/api/notifications', notificationRoutes);
 
-// Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+  const dbOk = mongoose.connection.readyState === 1;
+  res.status(200).json({
+    status: 'OK',
+    db: dbOk ? 'connected' : 'disconnected',
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
   });
 });
 
 // Error handling middleware
+// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ 
+  console.error(err.stack || err.message);
+  if (err.message && String(err.message).includes('CORS')) {
+    return res.status(403).json({
+      error: 'Forbidden',
+      message: process.env.NODE_ENV === 'development' ? err.message : 'Origin not allowed'
+    });
+  }
+  res.status(500).json({
     error: 'Something went wrong!',
     message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
   });
 });
 
-// 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
@@ -150,10 +166,10 @@ app.use('*', (req, res) => {
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
-  console.log(`🚀 Vitacoin server running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 API: http://localhost:${PORT}/api`);
-  console.log(`🔌 WebSocket: ws://localhost:${PORT}`);
+  console.log(`Vitacoin server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`API: http://localhost:${PORT}/api`);
+  console.log(`WebSocket: ws://localhost:${PORT}`);
 });
 
 module.exports = { app, server, io };

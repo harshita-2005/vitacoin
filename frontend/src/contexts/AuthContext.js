@@ -6,7 +6,7 @@ const AuthContext = createContext();
 
 const initialState = {
   user: null,
-  token: localStorage.getItem('token'),
+  token: null,
   loading: true,
   error: null
 };
@@ -64,27 +64,25 @@ const authReducer = (state, action) => {
 export const AuthProvider = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
-  // Verify stored token once on mount (read from localStorage to satisfy hook deps)
+  // Verify session: httpOnly cookie (production) and/or legacy Bearer token in localStorage
   useEffect(() => {
     const checkAuth = async () => {
-      const stored = localStorage.getItem('token');
-      if (stored) {
-        try {
-          dispatch({ type: 'AUTH_START' });
-          const response = await api.get('/api/auth/verify');
-          dispatch({
-            type: 'AUTH_SUCCESS',
-            payload: {
-              user: response.data.user,
-              token: stored
-            }
-          });
-        } catch (error) {
+      try {
+        dispatch({ type: 'AUTH_START' });
+        const response = await api.get('/api/auth/verify');
+        const legacy = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
+        dispatch({
+          type: 'AUTH_SUCCESS',
+          payload: {
+            user: response.data.user,
+            token: legacy
+          }
+        });
+      } catch (error) {
+        if (error?.response?.status !== 401) {
           console.error('Auth verification failed:', error);
-          localStorage.removeItem('token');
-          dispatch({ type: 'AUTH_FAILURE', payload: 'Authentication failed' });
         }
-      } else {
+        if (typeof localStorage !== 'undefined') localStorage.removeItem('token');
         dispatch({ type: 'AUTH_FAILURE', payload: null });
       }
     };
@@ -96,13 +94,14 @@ export const AuthProvider = ({ children }) => {
     try {
       dispatch({ type: 'AUTH_START' });
       const response = await api.post('/api/auth/login', { email, password });
-      
-      const { user, token } = response.data;
-      localStorage.setItem('token', token);
-      
+
+      const { user, token: bodyToken } = response.data;
+      if (typeof localStorage !== 'undefined') localStorage.removeItem('token');
+      if (bodyToken) localStorage.setItem('token', bodyToken);
+
       dispatch({
         type: 'AUTH_SUCCESS',
-        payload: { user, token }
+        payload: { user, token: bodyToken || null }
       });
 
       toast.success(`Welcome back, ${user.firstName}!`);
@@ -138,8 +137,13 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
+  const logout = async () => {
+    try {
+      await api.post('/api/auth/logout');
+    } catch (_) {
+      /* still clear client state */
+    }
+    if (typeof localStorage !== 'undefined') localStorage.removeItem('token');
     dispatch({ type: 'LOGOUT' });
     toast.success('Logged out successfully');
   };

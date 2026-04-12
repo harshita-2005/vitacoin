@@ -88,7 +88,7 @@ const Coupons = () => {
   const [error, setError] = useState(null);
   const [copySuccess, setCopySuccess] = useState(false);
   const [demoTopupLoading, setDemoTopupLoading] = useState(false);
-  const { user, token, loading: authLoading, updateUser } = useAuth();
+  const { user, loading: authLoading, updateUser } = useAuth();
   const navigate = useNavigate();
 
   /** Show “add demo coins” only in dev, or when REACT_APP_ENABLE_COUPON_DEMO=true (e.g. staging demo). */
@@ -97,8 +97,7 @@ const Coupons = () => {
     process.env.REACT_APP_ENABLE_COUPON_DEMO === 'true';
 
   const fetchUserBalance = useCallback(async () => {
-    const t = token || localStorage.getItem('token');
-    if (!t) {
+    if (!user) {
       setUserBalance(0);
       setRedemptionCounts({});
       setError(null);
@@ -126,7 +125,7 @@ const Coupons = () => {
         setError(msg || 'Failed to fetch wallet balance');
       }
     }
-  }, [token, user]);
+  }, [user]);
 
   const coupons = useMemo(() => {
     return AVAILABLE_COUPONS.map((c) => {

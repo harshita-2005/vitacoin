@@ -8,7 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 const REFRESH_EVENT = 'vitacoin-notifications-refresh';
 
 const NotificationDropdown = () => {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -17,7 +17,7 @@ const NotificationDropdown = () => {
   const [expandedId, setExpandedId] = useState(null);
 
   const load = useCallback(async () => {
-    if (!token || !user) return;
+    if (!user) return;
     try {
       setLoading(true);
       const { data } = await api.get('/api/notifications');
@@ -28,7 +28,7 @@ const NotificationDropdown = () => {
     } finally {
       setLoading(false);
     }
-  }, [token, user]);
+  }, [user]);
 
   useEffect(() => {
     load();

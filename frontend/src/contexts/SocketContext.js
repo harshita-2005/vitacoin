@@ -13,12 +13,10 @@ export const SocketProvider = ({ children }) => {
   const [connectedUsers, setConnectedUsers] = useState(0);
 
   useEffect(() => {
-    if (token && user) {
-      // Initialize socket connection
+    if (user) {
+      // Cookie session: withCredentials sends JWT; optional legacy auth.token if still in memory
       socketRef.current = io(getSocketUrl(), {
-        auth: {
-          token: token
-        },
+        ...(token ? { auth: { token } } : {}),
         transports: ['websocket', 'polling'],
         withCredentials: true
       });
