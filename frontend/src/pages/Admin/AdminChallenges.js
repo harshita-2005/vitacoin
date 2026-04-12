@@ -300,24 +300,6 @@ const AdminChallenges = () => {
                 />
               </div>
 
-              {dailyOverview.correctAnswerBreakdown?.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-warm-textSecondary uppercase tracking-wide mb-2">
-                    Correct answers
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {dailyOverview.correctAnswerBreakdown.map((row) => (
-                      <span
-                        key={String(row.correctAnswers)}
-                        className="text-xs bg-warm-secondary/30 border border-warm-border rounded-full px-3 py-1 text-warm-text"
-                      >
-                        {row.correctAnswers == null ? '—' : `${row.correctAnswers} correct`} · {row.completions}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {dailyOverview.topParticipants?.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-warm-textSecondary uppercase tracking-wide mb-2">

@@ -7,7 +7,10 @@ import { useAuth } from '../../contexts/AuthContext';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import GamePlayer from '../../components/Games/GamePlayer';
 import { INTERVIEW_PUZZLES, PUZZLE_CATEGORIES, PUZZLE_COMPANIES, getPuzzlesByCategoryAndCompany } from '../../data/interviewPuzzles';
-import { mcqDataReady, shuffleOptions } from '../../data/mcqs';
+import { mcqDataReady, shuffleOptions, MCQ_SUBJECTS } from '../../data/mcqs';
+
+/** Subjects shown in CS Fundamentals filters (matches previous tag bar). */
+const MCQ_SUBJECT_FILTER = MCQ_SUBJECTS.filter((s) => s.key !== 'OOP' && s.key !== 'Misc');
 
 /** Answer can be stored as letter "a"/"b"/"c"/"d" or as full option text. Returns true if option is correct. */
 function isMcqOptionCorrect(mcq, optionText, optionIndex) {
@@ -86,8 +89,11 @@ const Challenges = () => {
   };
   const PUZZLES_INITIAL = 5;
   const PUZZLES_INCREMENT = 10;
-  // CS Fundamentals MCQs (single pool: all subjects; sidebar = difficulty)
+  // CS Fundamentals MCQs — filters in sidebar (subject, topic, list mode, difficulty)
+  const [mcqSubject, setMcqSubject] = useState('all');
+  const [mcqListFilter, setMcqListFilter] = useState(null); // null | 'favorites' | 'completed'
   const [mcqFavorites, setMcqFavorites] = useState(() => new Set());
+  const [mcqTopics, setMcqTopics] = useState([]); // multi-select topic keys when subject !== 'all'
   const [mcqDifficulties, setMcqDifficulties] = useState([]); // multi-select: array of 'easy'|'medium'|'hard'
   const [mcqsToShow, setMcqsToShow] = useState(5);
   const MCQ_INITIAL = 5;
@@ -203,18 +209,43 @@ const Challenges = () => {
     } catch (_) {}
   }, [mcqFavorites, userId]);
 
-  // Base list by difficulty – no favorites dependency, so favoriting doesn’t re-shuffle or “move” the question
-  const baseFilteredMCQs = useMemo(() => {
+  const mcqTopicsForSubject = useMemo(
+    () => (mcqApi ? mcqApi.getTopicsBySubject(mcqSubject) : [{ key: 'all', label: 'All Topics' }]),
+    [mcqApi, mcqSubject]
+  );
+
+  const showMcqTopicFilter =
+    mcqSubject && mcqSubject !== 'all' && mcqListFilter !== 'favorites' && mcqListFilter !== 'completed';
+
+  // Pool before difficulty (for counts + base list)
+  const mcqPoolBeforeDifficulty = useMemo(() => {
     if (!mcqApi) return [];
-    let list = mcqApi.getMCQsBySubjectAndTopic('all', 'all');
+    const favOrDone = mcqListFilter === 'favorites' || mcqListFilter === 'completed';
+    const subjectForList = favOrDone ? 'all' : mcqSubject;
+    let list = mcqApi.getMCQsBySubjectAndTopic(subjectForList, 'all');
+    if (!favOrDone && mcqTopics.length > 0) {
+      const topicSet = new Set(mcqTopics);
+      list = list.filter(m => topicSet.has((m.topic || 'Other').trim()));
+    }
+    return list;
+  }, [mcqApi, mcqSubject, mcqTopics, mcqListFilter]);
+
+  const baseFilteredMCQs = useMemo(() => {
+    let list = mcqPoolBeforeDifficulty;
     if (mcqDifficulties.length > 0) {
       const diffSet = new Set(mcqDifficulties.map(d => d.toLowerCase()));
       list = list.filter(m => diffSet.has((m.difficulty || 'medium').toLowerCase()));
     }
     return list;
-  }, [mcqApi, mcqDifficulties]);
+  }, [mcqPoolBeforeDifficulty, mcqDifficulties]);
 
-  const filteredMCQs = baseFilteredMCQs;
+  const filteredMCQs = useMemo(() => {
+    if (mcqListFilter === 'favorites') return baseFilteredMCQs.filter(m => mcqFavorites.has(m.id));
+    if (mcqListFilter === 'completed') {
+      return baseFilteredMCQs.filter(m => completedMcqIds.has(m.id) || pendingMcqIds.has(m.id));
+    }
+    return baseFilteredMCQs;
+  }, [baseFilteredMCQs, mcqListFilter, mcqFavorites, completedMcqIds, pendingMcqIds]);
 
   const displayedMcqs = useMemo(() => {
     return filteredMCQs.slice(0, mcqsToShow).map(m => shuffleOptions({ ...m }));
@@ -224,7 +255,11 @@ const Challenges = () => {
   useEffect(() => {
     setInlineMcqSelections({});
     setInlineMcqSubmitted({});
-  }, [mcqDifficulties]);
+  }, [mcqSubject, mcqTopics, mcqDifficulties, mcqListFilter]);
+
+  useEffect(() => {
+    setMcqTopics([]);
+  }, [mcqSubject]);
 
   useEffect(() => {
     setPuzzlesToShow(PUZZLES_INITIAL);
@@ -232,16 +267,22 @@ const Challenges = () => {
 
   useEffect(() => {
     setMcqsToShow(MCQ_INITIAL);
-  }, [mcqDifficulties]);
+  }, [mcqSubject, mcqTopics, mcqDifficulties, mcqListFilter]);
 
   const mcqDifficultyCounts = useMemo(() => {
     const counts = { easy: 0, medium: 0, hard: 0 };
-    baseFilteredMCQs.forEach((m) => {
+    mcqPoolBeforeDifficulty.forEach((m) => {
       const d = (m.difficulty || 'medium').toLowerCase();
       if (counts[d] !== undefined) counts[d]++;
     });
     return counts;
-  }, [baseFilteredMCQs]);
+  }, [mcqPoolBeforeDifficulty]);
+
+  const mcqFiltersActive =
+    mcqSubject !== 'all' ||
+    mcqTopics.length > 0 ||
+    mcqDifficulties.length > 0 ||
+    mcqListFilter != null;
 
   const closeMcqModal = () => {
     setShowMcqModal(false);
@@ -1224,9 +1265,9 @@ const Challenges = () => {
             </div>
           </div>
 
-          {/* Right: difficulty filter */}
+          {/* Right: subject, topic, list mode, difficulty */}
           <aside className="lg:w-80 shrink-0">
-            <div className="rounded-xl border border-warm-border bg-white shadow-md overflow-hidden sticky top-4">
+            <div className="rounded-xl border border-warm-border bg-white shadow-md overflow-hidden sticky top-4 max-h-[min(72vh,800px)] flex flex-col">
               <div className="shrink-0 px-4 py-3 border-b border-warm-border bg-warm-container/40 flex items-center justify-between gap-3">
                 <span className="flex items-center gap-2 text-sm font-semibold text-warm-text uppercase tracking-wider">
                   <FiFilter className="w-4 h-4 shrink-0" />
@@ -1234,14 +1275,93 @@ const Challenges = () => {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setMcqDifficulties([])}
-                  disabled={mcqDifficulties.length === 0}
-                  className={`text-sm font-semibold shrink-0 hover:underline disabled:opacity-50 disabled:cursor-default disabled:no-underline ${mcqDifficulties.length > 0 ? 'text-black' : 'text-warm-textSecondary'}`}
+                  onClick={() => {
+                    setMcqSubject('all');
+                    setMcqTopics([]);
+                    setMcqDifficulties([]);
+                    setMcqListFilter(null);
+                  }}
+                  disabled={!mcqFiltersActive}
+                  className={`text-sm font-semibold shrink-0 hover:underline disabled:opacity-50 disabled:cursor-default disabled:no-underline ${mcqFiltersActive ? 'text-black' : 'text-warm-textSecondary'}`}
                 >
                   Clear filters
                 </button>
               </div>
-              <div className="p-0">
+              <div className="flex-1 min-h-0 overflow-y-auto p-0">
+                <div className="px-4 py-3 border-b border-warm-border">
+                  <p className="text-sm font-semibold uppercase tracking-wider mb-1 text-warm-text">Subject</p>
+                  <p className="text-sm text-warm-textSecondary mb-2">Choose an area</p>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {MCQ_SUBJECT_FILTER.map((sub) => (
+                      <label key={sub.key} className="flex items-center gap-2 cursor-pointer group py-0.5">
+                        <input
+                          type="radio"
+                          name="mcq-subject"
+                          checked={mcqSubject === sub.key && !mcqListFilter}
+                          onChange={() => {
+                            setMcqListFilter(null);
+                            setMcqSubject(sub.key);
+                          }}
+                          className="w-4 h-4 border-warm-border text-warm-primary focus:ring-warm-primary shrink-0"
+                        />
+                        <span className="text-base text-warm-text group-hover:text-warm-primary">{sub.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="px-4 py-3 border-b border-warm-border">
+                  <p className="text-sm font-semibold uppercase tracking-wider mb-2 text-warm-text">List</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMcqListFilter(mcqListFilter === 'favorites' ? null : 'favorites')}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                        mcqListFilter === 'favorites'
+                          ? 'bg-warm-primary text-white border-warm-primary'
+                          : 'bg-white text-warm-text border-warm-border hover:bg-warm-container'
+                      }`}
+                    >
+                      <FiHeart className="w-4 h-4" /> Favorites
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMcqListFilter(mcqListFilter === 'completed' ? null : 'completed')}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                        mcqListFilter === 'completed'
+                          ? 'bg-warm-primary text-white border-warm-primary'
+                          : 'bg-white text-warm-text border-warm-border hover:bg-warm-container'
+                      }`}
+                    >
+                      <FiCheckCircle className="w-4 h-4" /> Completed
+                    </button>
+                  </div>
+                </div>
+                {showMcqTopicFilter && (
+                  <div className="px-4 py-3 border-b border-warm-border">
+                    <p className="text-sm font-semibold uppercase tracking-wider mb-1 text-warm-text">Topic</p>
+                    <p className="text-sm text-warm-textSecondary mb-2">Select one or more</p>
+                    <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                      {mcqTopicsForSubject.filter(t => t.key !== 'all').map((t) => {
+                        const checked = mcqTopics.includes(t.key);
+                        return (
+                          <label key={t.key} className="flex items-center gap-2 cursor-pointer group py-0.5 pr-1">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() =>
+                                setMcqTopics((prev) =>
+                                  checked ? prev.filter((k) => k !== t.key) : [...prev, t.key]
+                                )
+                              }
+                              className="w-4 h-4 rounded border-warm-border text-warm-primary focus:ring-warm-primary shrink-0"
+                            />
+                            <span className="text-sm text-warm-text group-hover:text-warm-primary leading-snug">{t.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 <div className="px-4 py-3 shrink-0">
                   <p className="text-sm font-semibold uppercase tracking-wider mb-1 text-warm-text">Difficulty</p>
                   <p className="text-sm text-warm-textSecondary mb-1.5">Select one or more</p>

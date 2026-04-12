@@ -150,59 +150,53 @@ router.get('/daily-challenge/overview', async (req, res) => {
       createdAt: { $gte: start, $lt: end }
     };
 
-    const [totalCompletions, distinctUsers, coinsAgg, topParticipants, correctBreakdown] =
-      await Promise.all([
-        Transaction.countDocuments(match),
-        Transaction.distinct('user', match),
-        Transaction.aggregate([
-          { $match: match },
-          { $group: { _id: null, total: { $sum: '$amount' } } }
-        ]),
-        Transaction.aggregate([
-          { $match: match },
-          {
-            $group: {
-              _id: '$user',
-              totalCoins: { $sum: '$amount' },
-              completions: { $sum: 1 },
-              lastAt: { $max: '$createdAt' }
-            }
-          },
-          { $sort: { totalCoins: -1, lastAt: -1 } },
-          { $limit: 20 },
-          {
-            $lookup: {
-              from: 'users',
-              localField: '_id',
-              foreignField: '_id',
-              as: 'u'
-            }
-          },
-          { $unwind: { path: '$u', preserveNullAndEmptyArrays: true } },
-          {
-            $project: {
-              _id: 0,
-              userId: '$_id',
-              totalCoins: 1,
-              completions: 1,
-              lastAt: 1,
-              name: {
-                $trim: {
-                  input: {
-                    $concat: [{ $ifNull: ['$u.firstName', ''] }, ' ', { $ifNull: ['$u.lastName', ''] }]
-                  }
-                }
-              },
-              email: '$u.email'
-            }
+    const [totalCompletions, distinctUsers, coinsAgg, topParticipants] = await Promise.all([
+      Transaction.countDocuments(match),
+      Transaction.distinct('user', match),
+      Transaction.aggregate([
+        { $match: match },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+      ]),
+      Transaction.aggregate([
+        { $match: match },
+        {
+          $group: {
+            _id: '$user',
+            totalCoins: { $sum: '$amount' },
+            completions: { $sum: 1 },
+            lastAt: { $max: '$createdAt' }
           }
-        ]),
-        Transaction.aggregate([
-          { $match: match },
-          { $group: { _id: '$metadata.correctAnswers', count: { $sum: 1 } } },
-          { $sort: { _id: 1 } }
-        ])
-      ]);
+        },
+        { $sort: { totalCoins: -1, lastAt: -1 } },
+        { $limit: 20 },
+        {
+          $lookup: {
+            from: 'users',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'u'
+          }
+        },
+        { $unwind: { path: '$u', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 0,
+            userId: '$_id',
+            totalCoins: 1,
+            completions: 1,
+            lastAt: 1,
+            name: {
+              $trim: {
+                input: {
+                  $concat: [{ $ifNull: ['$u.firstName', ''] }, ' ', { $ifNull: ['$u.lastName', ''] }]
+                }
+              }
+            },
+            email: '$u.email'
+          }
+        }
+      ])
+    ]);
 
     res.json({
       success: true,
@@ -230,10 +224,6 @@ router.get('/daily-challenge/overview', async (req, res) => {
         uniqueParticipants: distinctUsers.length,
         totalCoinsPaid: coinsAgg[0]?.total || 0
       },
-      correctAnswerBreakdown: correctBreakdown.map((row) => ({
-        correctAnswers: row._id == null ? null : row._id,
-        completions: row.count
-      })),
       topParticipants
     });
   } catch (error) {
