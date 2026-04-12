@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { FiPlay, FiStar, FiAward, FiClock, FiTrendingUp, FiSearch, FiTarget, FiLogOut } from 'react-icons/fi';
 import api from '../../api/axios';
@@ -14,7 +14,7 @@ import { getDailyChallengeProgress } from '../../utils/dailyChallengeStorage';
 import toast from 'react-hot-toast';
 
 const PlayGames = () => {
-  const { user, logout, updateBalance, updateUser } = useAuth();
+  const { user, loading: authLoading, logout, updateBalance, updateUser } = useAuth();
   const navigate = useNavigate();
   const [games, setGames] = useState([]);
   const [challenges, setChallenges] = useState([]);
@@ -30,20 +30,7 @@ const PlayGames = () => {
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    fetchGamesData();
-    const fetchVerbalDataset = async () => {
-      try {
-        const r = await api.get('/api/dataset/verbal');
-        if (r.data?.words?.length) setExtendedWordBank(r.data.words);
-      } catch (_) {
-        // ignore; use default word bank only
-      }
-    };
-    fetchVerbalDataset();
-  }, []);
-
-  const fetchGamesData = async () => {
+  const fetchGamesData = useCallback(async () => {
     try {
       setLoading(true);
       const [gamesRes, challengesRes] = await Promise.all([
@@ -56,11 +43,37 @@ const PlayGames = () => {
       setChallenges(challengesList);
     } catch (error) {
       console.error('Error fetching games data:', error);
+      const status = error.response?.status;
+      if (status === 401 || status === 403) {
+        toast.error('Session expired or not allowed. Please log in again.');
+      } else if (!error.response) {
+        toast.error(
+          'Could not reach the game server. Check that REACT_APP_API_URL points to your Render API.'
+        );
+      }
       // Don't clear games/challenges on error so a failed refresh doesn't wipe the list
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const fetchVerbalDataset = async () => {
+      try {
+        const r = await api.get('/api/dataset/verbal');
+        if (r.data?.words?.length) setExtendedWordBank(r.data.words);
+      } catch (_) {
+        // ignore; use default word bank only
+      }
+    };
+    fetchVerbalDataset();
+  }, []);
+
+  // Fetch games after auth is ready (avoids 401 before session cookie is used on first paint)
+  useEffect(() => {
+    if (authLoading || !user) return;
+    fetchGamesData();
+  }, [authLoading, user?._id, fetchGamesData]);
 
   const handleGameSelect = (game) => {
     setSelectedGame(game);

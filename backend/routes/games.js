@@ -5,6 +5,7 @@ const Challenge = require('../models/Challenge');
 const UserChallenge = require('../models/UserChallenge');
 const Transaction = require('../models/Transaction');
 const { protect, adminOrModerator } = require('../middleware/auth');
+const { ensureDefaultGamesIfEmpty } = require('../services/gameBootstrap');
 const router = express.Router();
 
 // @desc    Get all games
@@ -45,6 +46,9 @@ router.get('/', protect, async (req, res) => {
 // @access  Private
 router.get('/active', protect, async (req, res) => {
   try {
+    // Lazy seed if startup bootstrap missed (e.g. DB not ready on first connect)
+    await ensureDefaultGamesIfEmpty();
+
     const games = await Game.find({ isActive: true })
       .sort({ 'stats.totalPlays': -1 });
 

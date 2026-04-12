@@ -3,11 +3,12 @@ const User = require('../models/User');
 const { getTokenFromCookieHeader } = require('../utils/authCookie');
 
 function extractToken(req) {
+  const fromCookie = getTokenFromCookieHeader(req.headers.cookie);
   const auth = req.headers.authorization;
-  if (auth && auth.startsWith('Bearer')) {
-    return auth.split(' ')[1];
-  }
-  return getTokenFromCookieHeader(req.headers.cookie);
+  const fromBearer =
+    auth && auth.startsWith('Bearer') ? auth.split(' ')[1] : null;
+  // Prefer cookie when present so a stale Bearer in localStorage cannot override a valid session cookie
+  return fromCookie || fromBearer;
 }
 
 function jwtErrorResponse(res, error) {
@@ -66,13 +67,15 @@ const adminOrModerator = (req, res, next) => {
 };
 
 function extractSocketToken(socket) {
+  const fromCookie = getTokenFromCookieHeader(socket.handshake.headers?.cookie);
+  if (fromCookie) return fromCookie;
   const fromAuth = socket.handshake.auth?.token;
   if (fromAuth) return fromAuth;
   const header = socket.handshake.headers?.authorization;
   if (header && header.startsWith('Bearer')) {
     return header.split(' ')[1];
   }
-  return getTokenFromCookieHeader(socket.handshake.headers?.cookie);
+  return null;
 }
 
 // Socket.IO authentication middleware

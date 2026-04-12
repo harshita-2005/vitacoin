@@ -70,12 +70,17 @@ export const AuthProvider = ({ children }) => {
       try {
         dispatch({ type: 'AUTH_START' });
         const response = await api.get('/api/auth/verify');
-        const legacy = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
+        const bodyToken = response.data.token;
+        if (typeof localStorage !== 'undefined') {
+          if (bodyToken) localStorage.setItem('token', bodyToken);
+        }
+        const stored =
+          typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
         dispatch({
           type: 'AUTH_SUCCESS',
           payload: {
             user: response.data.user,
-            token: legacy
+            token: bodyToken || stored
           }
         });
       } catch (error) {
@@ -118,13 +123,16 @@ export const AuthProvider = ({ children }) => {
     try {
       dispatch({ type: 'AUTH_START' });
       const response = await api.post('/api/auth/register', userData);
-      
-      const { user, token } = response.data;
-      localStorage.setItem('token', token);
-      
+
+      const { user, token: bodyToken } = response.data;
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('token');
+        if (bodyToken) localStorage.setItem('token', bodyToken);
+      }
+
       dispatch({
         type: 'AUTH_SUCCESS',
-        payload: { user, token }
+        payload: { user, token: bodyToken || null }
       });
 
       toast.success(`Welcome to Vitacoin, ${user.firstName}!`);

@@ -1,7 +1,7 @@
 const express = require('express');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
-const { protect, generateToken } = require('../middleware/auth');
+const { protect, generateToken, extractToken } = require('../middleware/auth');
 const { setAuthCookie, clearAuthCookie } = require('../utils/authCookie');
 const router = express.Router();
 
@@ -52,7 +52,8 @@ router.post('/register', async (req, res) => {
           badgeCount: user.badgeCount,
           role: user.role,
           couponRedemptionCounts: user.couponRedemptionCounts || {}
-        }
+        },
+        token
       });
     } else {
       res.status(400).json({ error: 'Invalid user data' });
@@ -151,7 +152,8 @@ router.post('/login', async (req, res) => {
         badgeCount: user.badgeCount,
         role: user.role,
         couponRedemptionCounts: user.couponRedemptionCounts || {}
-      }
+      },
+      token
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -285,10 +287,12 @@ router.put('/change-password', protect, async (req, res) => {
 // @route   GET /api/auth/verify
 // @access  Private
 router.get('/verify', protect, (req, res) => {
-  res.json({ 
-    valid: true, 
+  const token = extractToken(req);
+  res.json({
+    valid: true,
     user: req.user,
-    message: 'Token is valid' 
+    message: 'Token is valid',
+    ...(token ? { token } : {})
   });
 });
 
