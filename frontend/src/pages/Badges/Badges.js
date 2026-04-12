@@ -1,14 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import axios from 'axios';
+import api from '../../api/axios';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import AchievementMilestones from '../../components/Badges/AchievementMilestones';
 import { getRarityLabel } from '../../utils/badgeRarity';
-
-const authHeaders = () => ({
-  headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-});
 
 /** Puts Getting Started first, First Steps second; remaining badges follow A–Z by name. */
 const BADGE_NAME_ORDER = ['getting started', 'first steps'];
@@ -42,16 +38,16 @@ const Badges = () => {
       if (showFullPageLoader) setLoading(true);
       if (syncAwards) {
         try {
-          await axios.post('/api/badges/check', {}, authHeaders());
+          await api.post('/api/badges/check', {});
         } catch (e) {
           console.warn('Badge sync:', e);
         }
       }
 
       const [badgesRes, userBadgesRes, progressRes] = await Promise.all([
-        axios.get('/api/badges', authHeaders()),
-        axios.get('/api/badges/user', authHeaders()),
-        axios.get('/api/badges/progress', authHeaders())
+        api.get('/api/badges'),
+        api.get('/api/badges/user'),
+        api.get('/api/badges/progress')
       ]);
 
       const raw = badgesRes.data;

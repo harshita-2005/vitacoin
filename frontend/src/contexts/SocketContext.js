@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
+import { getSocketUrl } from '../api/axios';
 import toast from 'react-hot-toast';
 
 const SocketContext = createContext();
@@ -14,11 +15,12 @@ export const SocketProvider = ({ children }) => {
   useEffect(() => {
     if (token && user) {
       // Initialize socket connection
-      socketRef.current = io(process.env.REACT_APP_SOCKET_URL || 'http://localhost:5001', {
+      socketRef.current = io(getSocketUrl(), {
         auth: {
           token: token
         },
-        transports: ['websocket', 'polling']
+        transports: ['websocket', 'polling'],
+        withCredentials: true
       });
 
       // Connection events

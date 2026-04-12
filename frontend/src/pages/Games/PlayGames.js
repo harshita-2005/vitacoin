@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FiPlay, FiStar, FiAward, FiClock, FiTrendingUp, FiSearch, FiTarget, FiLogOut } from 'react-icons/fi';
-import axios from 'axios';
+import api from '../../api/axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
@@ -34,7 +34,7 @@ const PlayGames = () => {
     fetchGamesData();
     const fetchVerbalDataset = async () => {
       try {
-        const r = await axios.get('/api/dataset/verbal');
+        const r = await api.get('/api/dataset/verbal');
         if (r.data?.words?.length) setExtendedWordBank(r.data.words);
       } catch (_) {
         // ignore; use default word bank only
@@ -47,8 +47,8 @@ const PlayGames = () => {
     try {
       setLoading(true);
       const [gamesRes, challengesRes] = await Promise.all([
-        axios.get('/api/games/active'),
-        axios.get('/api/challenges/active')
+        api.get('/api/games/active'),
+        api.get('/api/challenges/active')
       ]);
       const gamesList = Array.isArray(gamesRes.data) ? gamesRes.data : (gamesRes.data?.games ?? []);
       const challengesList = Array.isArray(challengesRes.data) ? challengesRes.data : (challengesRes.data?.challenges ?? []);
@@ -81,7 +81,7 @@ const PlayGames = () => {
 
   const handleDailyChallengeComplete = async (result) => {
     try {
-      const response = await axios.post('/api/daily-challenge/complete', {
+      const response = await api.post('/api/daily-challenge/complete', {
         game: 'daily_challenge',
         score: result?.score ?? 0,
         time: result?.time ?? 0,
@@ -95,7 +95,7 @@ const PlayGames = () => {
         const xp = response.data.xpAwarded ?? 0;
         toast.success(response.data.message || `Daily challenge completed! +${coins} coins, +${xp} XP`);
         try {
-          const userResponse = await axios.get('/api/auth/verify');
+          const userResponse = await api.get('/api/auth/verify');
           if (userResponse.data.user) updateUser(userResponse.data.user);
         } catch (e) {
           console.error(e);
@@ -124,7 +124,7 @@ const PlayGames = () => {
     try {
       if (isDailyChallenge) {
         // Submit daily challenge completion
-        const response = await axios.post('/api/daily-challenge/complete', {
+        const response = await api.post('/api/daily-challenge/complete', {
           game: selectedGame.slug || selectedGame._id,
           score: result.score,
           time: result.time,
@@ -136,7 +136,7 @@ const PlayGames = () => {
           
           // Fetch updated user data to get latest totalEarned and coinBalance
           try {
-            const userResponse = await axios.get('/api/auth/verify');
+            const userResponse = await api.get('/api/auth/verify');
             if (userResponse.data.user) {
               updateUser(userResponse.data.user);
             }
@@ -159,7 +159,7 @@ const PlayGames = () => {
           accuracy: result.accuracy
         });
         
-        const response = await axios.post('/api/game/play', {
+        const response = await api.post('/api/game/play', {
           game: selectedGame.slug || selectedGame._id,
           difficulty: selectedDifficulty,
           score: result.score || 0,
@@ -177,7 +177,7 @@ const PlayGames = () => {
           
           // Fetch updated user data to get latest totalEarned and coinBalance
           try {
-            const userResponse = await axios.get('/api/auth/verify');
+            const userResponse = await api.get('/api/auth/verify');
             if (userResponse.data.user) {
               updateUser(userResponse.data.user);
             }

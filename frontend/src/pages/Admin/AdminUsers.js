@@ -7,7 +7,7 @@ import {
   FiToggleRight,
   FiCopy
 } from 'react-icons/fi';
-import axios from 'axios';
+import api from '../../api/axios';
 import toast from 'react-hot-toast';
 
 /** Parse dailyAttempts map keys like `math-quiz_easy` for admin UI */
@@ -50,9 +50,7 @@ const AdminUsers = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await axios.get('/api/admin/users', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
+      const response = await api.get('/api/admin/users');
       setUsers(response.data);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -63,9 +61,7 @@ const AdminUsers = () => {
 
   const toggleUserStatus = async (userId, currentStatus) => {
     try {
-      await axios.put(`/api/admin/users/${userId}/toggle`, {}, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
+      await api.put(`/api/admin/users/${userId}/toggle`, {});
       fetchUsers();
     } catch (error) {
       console.error('Error toggling user status:', error);
@@ -75,9 +71,7 @@ const AdminUsers = () => {
   const handleDeleteUser = async (userId) => {
     if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       try {
-        await axios.delete(`/api/admin/users/${userId}`, {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        });
+        await api.delete(`/api/admin/users/${userId}`);
         fetchUsers();
       } catch (error) {
         console.error('Error deleting user:', error);
@@ -90,9 +84,7 @@ const AdminUsers = () => {
     setSelectedUser(null);
     setProfileLoading(true);
     try {
-      const response = await axios.get(`/api/admin/users/${userId}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      const response = await api.get(`/api/admin/users/${userId}`);
       setSelectedUser(response.data);
     } catch (error) {
       console.error('Error fetching user details:', error);

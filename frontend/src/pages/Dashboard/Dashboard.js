@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FiTrendingUp, FiAward, FiDollarSign, FiActivity, FiPlay, FiMinus, FiLogOut, FiGift, FiCreditCard, FiShoppingCart, FiRepeat } from 'react-icons/fi';
-import axios from 'axios';
+import { FiTrendingUp, FiAward, FiActivity, FiPlay, FiMinus, FiLogOut, FiGift, FiCreditCard, FiShoppingCart, FiRepeat } from 'react-icons/fi';
+import api from '../../api/axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { useSocket } from '../../contexts/SocketContext';
@@ -69,8 +69,8 @@ const Dashboard = () => {
     try {
       setLoading(true);
       const [statsRes, transactionsRes] = await Promise.all([
-        axios.get('/api/transactions/stats'),
-        axios.get('/api/transactions?limit=5')
+        api.get('/api/transactions/stats'),
+        api.get('/api/transactions?limit=5')
       ]);
 
       setStats(statsRes.data);

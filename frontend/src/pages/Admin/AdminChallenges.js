@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { FiCalendar, FiRefreshCw, FiTrendingUp, FiEdit2, FiX } from 'react-icons/fi';
-import axios from 'axios';
+import api from '../../api/axios';
 import toast from 'react-hot-toast';
 
 const StatMini = ({ value, label, title }) => {
@@ -40,11 +40,10 @@ const AdminChallenges = () => {
     setLoadError('');
     if (isRefresh) setRefreshing(true);
     try {
-      const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
       const [dailyRes, weeklyRes, rewardRes] = await Promise.all([
-        axios.get('/api/admin/daily-challenge/overview', { headers }),
-        axios.get('/api/admin/daily-challenge/weekly-summary', { headers }),
-        axios.get('/api/admin/daily-challenge/reward-settings', { headers })
+        api.get('/api/admin/daily-challenge/overview'),
+        api.get('/api/admin/daily-challenge/weekly-summary'),
+        api.get('/api/admin/daily-challenge/reward-settings')
       ]);
       setDailyOverview(dailyRes.data);
       setWeeklySummary(weeklyRes.data);
@@ -83,8 +82,7 @@ const AdminChallenges = () => {
     e?.preventDefault?.();
     setRewardSaving(true);
     try {
-      const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
-      await axios.put('/api/admin/daily-challenge/reward-settings', rewardForm, { headers });
+      await api.put('/api/admin/daily-challenge/reward-settings', rewardForm);
       toast.success('Daily challenge rewards updated. New values apply to the next completion.');
       setRewardRulesEditing(false);
       setRewardFormSnapshot(null);

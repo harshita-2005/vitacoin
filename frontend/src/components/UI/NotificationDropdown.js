@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiBell, FiX, FiChevronDown, FiChevronUp } from 'react-icons/fi';
-import axios from 'axios';
+import api from '../../api/axios';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -20,7 +20,7 @@ const NotificationDropdown = () => {
     if (!token || !user) return;
     try {
       setLoading(true);
-      const { data } = await axios.get('/api/notifications');
+      const { data } = await api.get('/api/notifications');
       setNotifications(data.notifications || []);
       setUnreadCount(data.unreadCount ?? 0);
     } catch (e) {
@@ -42,7 +42,7 @@ const NotificationDropdown = () => {
 
   const markOneRead = async (id) => {
     try {
-      const { data } = await axios.patch(`/api/notifications/${id}/read`);
+      const { data } = await api.patch(`/api/notifications/${id}/read`);
       if (typeof data.unreadCount === 'number') setUnreadCount(data.unreadCount);
       else load();
     } catch {
@@ -52,7 +52,7 @@ const NotificationDropdown = () => {
 
   const markAllRead = async () => {
     try {
-      await axios.post('/api/notifications/read-all');
+      await api.post('/api/notifications/read-all');
       setUnreadCount(0);
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     } catch {

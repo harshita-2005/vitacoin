@@ -9,7 +9,7 @@ import {
   FiEyeOff,
   FiX
 } from 'react-icons/fi';
-import axios from 'axios';
+import api, { isAxiosCancel } from '../../api/axios';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -60,7 +60,7 @@ const AdminSettings = () => {
 
   const fetchAdminProfile = async () => {
     try {
-      const response = await axios.get('/api/auth/profile');
+      const response = await api.get('/api/auth/profile');
       const { firstName, lastName, email } = response.data;
       setProfileData(prev => ({ ...prev, firstName, lastName, email }));
     } catch (error) {
@@ -71,7 +71,7 @@ const AdminSettings = () => {
 
   const fetchSystemSettings = async () => {
     try {
-      const response = await axios.get('/api/admin/settings');
+      const response = await api.get('/api/admin/settings');
       setSystemSettings(response.data);
     } catch (error) {
       console.error('Error fetching settings:', error);
@@ -92,7 +92,7 @@ const AdminSettings = () => {
 
     try {
       setProfileLoading(true);
-      const { data } = await axios.put('/api/auth/profile', {
+      const { data } = await api.put('/api/auth/profile', {
         firstName: profileData.firstName,
         lastName: profileData.lastName,
         email: profileData.email
@@ -104,7 +104,7 @@ const AdminSettings = () => {
       });
 
       if (profileData.newPassword) {
-        await axios.put('/api/auth/change-password', {
+        await api.put('/api/auth/change-password', {
           currentPassword: profileData.currentPassword,
           newPassword: profileData.newPassword
         });
@@ -134,7 +134,7 @@ const AdminSettings = () => {
     e.preventDefault();
     try {
       setSettingsLoading(true);
-      await axios.put('/api/admin/settings', systemSettings);
+      await api.put('/api/admin/settings', systemSettings);
       setMessage({ type: 'success', text: 'System settings updated successfully' });
     } catch (error) {
       setMessage({ 
@@ -191,9 +191,7 @@ const AdminSettings = () => {
         type: broadcast.type
       };
       if (ids.length > 0) body.userIds = ids;
-      const { data } = await axios.post('/api/admin/notifications/broadcast', body, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      const { data } = await api.post('/api/admin/notifications/broadcast', body);
       toast.success(data.sent != null ? `Sent to ${data.sent} user(s).` : 'Sent.');
       setBroadcast({ title: '', message: '', type: 'info' });
       setBroadcastUserIds('');
@@ -233,14 +231,13 @@ const AdminSettings = () => {
 
       Promise.all(
         idsSnapshot.map((id) =>
-          axios
+          api
             .get(`/api/admin/users/${id}`, {
-              signal: ac.signal,
-              headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+              signal: ac.signal
             })
             .then(({ data }) => ({ id, displayName: formatUserDisplayName(data) }))
             .catch((err) => {
-              if (axios.isCancel(err) || err.code === 'ERR_CANCELED' || err.name === 'CanceledError') {
+              if (isAxiosCancel(err)) {
                 return null;
               }
               return { id, error: 'Not found' };

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiPlay, FiAward, FiClock, FiTarget, FiStar, FiTrendingUp, FiCheckCircle, FiXCircle, FiPause, FiRotateCcw, FiZap, FiHelpCircle, FiEye, FiX, FiSearch, FiFilter, FiHeart, FiLock } from 'react-icons/fi';
-import axios from 'axios';
+import { FiPlay, FiAward, FiClock, FiTarget, FiCheckCircle, FiXCircle, FiPause, FiRotateCcw, FiZap, FiHelpCircle, FiEye, FiX, FiSearch, FiFilter, FiHeart, FiLock } from 'react-icons/fi';
+import api from '../../api/axios';
 import { useAuth } from '../../contexts/AuthContext';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import GamePlayer from '../../components/Games/GamePlayer';
@@ -20,7 +20,7 @@ function isMcqOptionCorrect(mcq, optionText, optionIndex) {
 const Challenges = () => {
   const { user, updateBalance } = useAuth();
   const [challenges, setChallenges] = useState([]);
-  const [games, setGames] = useState([]);
+  const [, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedGame, setSelectedGame] = useState(null);
   const [selectedChallenge, setSelectedChallenge] = useState(null);
@@ -168,6 +168,7 @@ const Challenges = () => {
   }, [showFilterPanel]);
 
   const timeUntilNextAttempt = useMemo(() => {
+    void lockCountdownTick;
     const now = new Date();
     const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
     const ms = tomorrow - now;
@@ -176,7 +177,7 @@ const Challenges = () => {
       h: Math.floor(ms / (1000 * 60 * 60)),
       m: Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60))
     };
-  }, [showPuzzleModal, puzzleBlockedUntilTomorrow, lockCountdownTick]);
+  }, [lockCountdownTick]);
 
   useEffect(() => {
     if (!showPuzzleModal || !puzzleBlockedUntilTomorrow) return;
@@ -230,16 +231,17 @@ const Challenges = () => {
     return baseFilteredMCQs;
   }, [baseFilteredMCQs, mcqListFilter, mcqFavorites, completedMcqIds, pendingMcqIds]);
 
-  const displayedMcqIds = useMemo(() => filteredMCQs.slice(0, mcqsToShow).map(m => m.id).join(','), [filteredMCQs, mcqsToShow]);
   const displayedMcqs = useMemo(() => {
     return filteredMCQs.slice(0, mcqsToShow).map(m => shuffleOptions({ ...m }));
   }, [filteredMCQs, mcqsToShow]);
 
   // Flush MCQ batch only when leaving the page so all subjects (OS, CN, etc.) become one Coin Activity card
   useEffect(() => {
+    const batchRef = mcqBatchRef;
     return () => {
-      if (mcqBatchRef.current.length > 0) {
-        axios.post('/api/mcqs/complete-batch', { items: mcqBatchRef.current }).catch(() => {});
+      const pending = batchRef.current;
+      if (pending.length > 0) {
+        api.post('/api/mcqs/complete-batch', { items: pending }).catch(() => {});
       }
     };
   }, []);
@@ -277,43 +279,11 @@ const Challenges = () => {
     return counts;
   }, [baseFilteredMCQs]);
 
-  const openMcqModal = (mcq) => {
-    setSelectedMcq(shuffleOptions({ ...mcq }));
-    setMcqSelectedOption(null);
-    setMcqSubmitted(false);
-    setShowMcqModal(true);
-  };
-
   const closeMcqModal = () => {
     setShowMcqModal(false);
     setSelectedMcq(null);
     setMcqSelectedOption(null);
     setMcqSubmitted(false);
-  };
-
-  const flushMcqBatch = async () => {
-    const items = mcqBatchRef.current;
-    if (items.length === 0) return;
-    mcqBatchRef.current = [];
-    const pending = new Set(items.map(i => i.mcqId));
-    setPendingMcqIds(prev => {
-      const next = new Set(prev);
-      pending.forEach(id => next.delete(id));
-      return next;
-    });
-    try {
-      const res = await axios.post('/api/mcqs/complete-batch', { items });
-      if (res.data?.newBalance != null) updateBalance(res.data.newBalance);
-      const completedIds = res.data?.completed || [];
-      if (completedIds.length) {
-        setCompletedMcqIds(prev => new Set([...prev, ...completedIds]));
-      }
-    } catch (err) {
-      mcqBatchRef.current = items;
-      setPendingMcqIds(prev => new Set([...prev, ...pending]));
-      const msg = err.response?.data?.error || 'Failed to save coins';
-      alert(msg);
-    }
   };
 
   const handleMcqComplete = (mcq) => {
@@ -425,10 +395,10 @@ const Challenges = () => {
   const fetchData = async () => {
     try {
       const [challengesRes, gamesRes, completedRes, mcqCompletedRes] = await Promise.all([
-        axios.get('/api/challenges'),
-        axios.get('/api/games'),
-        axios.get('/api/puzzles/user/completed').catch(() => ({ data: { completed: [] } })),
-        axios.get('/api/mcqs/user/completed').catch(() => null)
+        api.get('/api/challenges'),
+        api.get('/api/games'),
+        api.get('/api/puzzles/user/completed').catch(() => ({ data: { completed: [] } })),
+        api.get('/api/mcqs/user/completed').catch(() => null)
       ]);
       
       setChallenges(challengesRes.data);
@@ -509,7 +479,7 @@ const Challenges = () => {
     if (completedPuzzleIds.has(selectedPuzzle.id)) return; // already completed: no API call, no popup
     setCompletingPuzzle(true);
     try {
-      const res = await axios.post('/api/puzzles/complete', { puzzleId: selectedPuzzle.id });
+      const res = await api.post('/api/puzzles/complete', { puzzleId: selectedPuzzle.id });
       const coins = res.data?.coinsAwarded ?? selectedPuzzle.reward ?? 0;
       if (res.data?.newBalance != null) updateBalance(res.data.newBalance);
       setCompletedPuzzleIds(prev => new Set([...prev, selectedPuzzle.id]));
@@ -544,18 +514,12 @@ const Challenges = () => {
     return list;
   })();
 
-  const handleGameSelect = (game) => {
-    setSelectedGame(game);
-    setSelectedChallenge(null);
-    setShowGamePlayer(true);
-  };
-
   const handleChallengeSelect = async (challenge) => {
     console.log('Challenge selected:', challenge);
     
     try {
       // Start the challenge first
-      const response = await axios.post(`/api/challenges/${challenge._id}/start`, {
+      const response = await api.post(`/api/challenges/${challenge._id}/start`, {
         userId: user._id
       });
       
@@ -644,7 +608,7 @@ const Challenges = () => {
         }
         
         // Complete challenge with timer validation
-        response = await axios.post(`/api/challenges/${selectedChallenge._id}/complete`, {
+        response = await api.post(`/api/challenges/${selectedChallenge._id}/complete`, {
           score: result.score,
           time: result.time,
           accuracy: result.accuracy,
@@ -684,7 +648,7 @@ const Challenges = () => {
         }
       } else {
         // Regular game completion
-        response = await axios.post(`/api/games/${selectedGame._id}/score`, {
+        response = await api.post(`/api/games/${selectedGame._id}/score`, {
           score: result.score,
           time: result.time,
           accuracy: result.accuracy
@@ -703,8 +667,6 @@ const Challenges = () => {
   };
 
   const getFilteredChallenges = () => challenges;
-
-  const getFilteredGames = () => games;
 
   const scrollToSection = (section) => {
     setSectionNav(section);
@@ -1373,7 +1335,7 @@ const Challenges = () => {
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {getFilteredChallenges().map((challenge, index) => {
-                const { timer, isActive } = debugChallengeState(challenge);
+                const { timer } = debugChallengeState(challenge);
                 const buttonState = getButtonState(challenge);
                 const Icon = buttonState.icon;
                 

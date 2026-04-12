@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { FiFilter, FiRefreshCw, FiDownload } from 'react-icons/fi';
-import axios from 'axios';
+import api from '../../api/axios';
 import { useAuth } from '../../contexts/AuthContext';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 
@@ -102,7 +102,7 @@ const Transactions = () => {
       if (filters.startDate) params.set('startDate', filters.startDate);
       if (filters.endDate) params.set('endDate', filters.endDate);
 
-      const response = await axios.get(`/api/transactions?${params}`);
+      const response = await api.get(`/api/transactions?${params}`);
       setTransactions(response.data.transactions);
       setPagination(prev => ({
         ...prev,
@@ -158,20 +158,6 @@ const Transactions = () => {
 
   const handlePageChange = (newPage) => {
     setPagination(prev => ({ ...prev, page: newPage }));
-  };
-
-  const getTransactionColor = (amount) => {
-    return amount > 0 ? 'text-green-600' : 'text-red-600';
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
   };
 
   const formatTableDate = (dateString) => {

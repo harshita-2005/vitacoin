@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { FiGift, FiShoppingBag, FiCheckCircle, FiAlertCircle, FiCopy, FiDollarSign } from 'react-icons/fi';
-import axios from 'axios';
+import api from '../../api/axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
@@ -96,11 +96,6 @@ const Coupons = () => {
     process.env.NODE_ENV === 'development' ||
     process.env.REACT_APP_ENABLE_COUPON_DEMO === 'true';
 
-  const authHeader = useCallback(() => {
-    const t = token || localStorage.getItem('token');
-    return t ? { Authorization: `Bearer ${t}` } : {};
-  }, [token]);
-
   const fetchUserBalance = useCallback(async () => {
     const t = token || localStorage.getItem('token');
     if (!t) {
@@ -110,9 +105,7 @@ const Coupons = () => {
       return;
     }
     try {
-      const response = await axios.get('/api/wallet/balance', {
-        headers: { Authorization: `Bearer ${t}` }
-      });
+      const response = await api.get('/api/wallet/balance');
       const bal = response.data?.balance;
       setUserBalance(typeof bal === 'number' ? bal : 0);
       if (response.data?.couponRedemptionCounts && typeof response.data.couponRedemptionCounts === 'object') {
@@ -173,11 +166,7 @@ const Coupons = () => {
     setDemoTopupLoading(true);
     setError(null);
     try {
-      const response = await axios.post(
-        '/api/wallet/demo-topup',
-        { amount: 600 },
-        { headers: authHeader() }
-      );
+      const response = await api.post('/api/wallet/demo-topup', { amount: 600 });
       const next = response.data?.newBalance;
       if (typeof next === 'number') {
         setUserBalance(next);
@@ -194,7 +183,7 @@ const Coupons = () => {
     } finally {
       setDemoTopupLoading(false);
     }
-  }, [authHeader, updateUser, user]);
+  }, [updateUser, user]);
 
   const handleRedeem = async (coupon) => {
     if (userBalance < coupon.cost) {
@@ -206,16 +195,12 @@ const Coupons = () => {
     setError(null);
 
     try {
-      const response = await axios.post(
-        '/api/wallet/spend',
-        {
-          amount: coupon.cost,
-          description: `Redeemed ${coupon.name} coupon worth ${coupon.value}`,
-          category: 'coupon_redemption',
-          couponId: coupon.id
-        },
-        { headers: authHeader() }
-      );
+      const response = await api.post('/api/wallet/spend', {
+        amount: coupon.cost,
+        description: `Redeemed ${coupon.name} coupon worth ${coupon.value}`,
+        category: 'coupon_redemption',
+        couponId: coupon.id
+      });
 
       // Update local state
       setUserBalance(response.data.newBalance);

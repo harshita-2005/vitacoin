@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { FiAward, FiStar, FiTarget, FiLayers } from 'react-icons/fi';
-import axios from 'axios';
+import api from '../../api/axios';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 
 const Leaderboard = () => {
@@ -15,11 +15,7 @@ const Leaderboard = () => {
       setLoading(true);
       const endpoint = `/api/leaderboard?sortBy=${sortBy}&page=${page}&limit=50`;
 
-      const response = await axios.get(endpoint, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      const response = await api.get(endpoint);
 
       if (response.status === 200) {
         setLeaderboardData(response.data);

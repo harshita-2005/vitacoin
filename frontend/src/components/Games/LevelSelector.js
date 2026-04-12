@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { FiLock, FiUnlock, FiCheck, FiAlertCircle } from 'react-icons/fi';
-import axios from 'axios';
+import api from '../../api/axios';
 import { getAllRewardBases } from '../../utils/gameRewardPreview';
 
 const LevelSelector = ({ gameSlug, onLevelSelect, selectedLevel, game }) => {
@@ -37,7 +37,7 @@ const LevelSelector = ({ gameSlug, onLevelSelect, selectedLevel, game }) => {
   const fetchProgress = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`/api/game/progress/${gameSlug}`);
+      const response = await api.get(`/api/game/progress/${gameSlug}`);
       if (response.data.success) {
         setProgress(response.data.progress);
         setAttempts(response.data.attempts);

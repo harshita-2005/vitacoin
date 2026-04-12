@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 import toast from 'react-hot-toast';
 
 const AuthContext = createContext();
@@ -64,27 +64,19 @@ const authReducer = (state, action) => {
 export const AuthProvider = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
-  // Set up axios defaults
-  useEffect(() => {
-    if (state.token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${state.token}`;
-    } else {
-      delete axios.defaults.headers.common['Authorization'];
-    }
-  }, [state.token]);
-
-  // Check if user is authenticated on mount
+  // Verify stored token once on mount (read from localStorage to satisfy hook deps)
   useEffect(() => {
     const checkAuth = async () => {
-      if (state.token) {
+      const stored = localStorage.getItem('token');
+      if (stored) {
         try {
           dispatch({ type: 'AUTH_START' });
-          const response = await axios.get('/api/auth/verify');
+          const response = await api.get('/api/auth/verify');
           dispatch({
             type: 'AUTH_SUCCESS',
             payload: {
               user: response.data.user,
-              token: state.token
+              token: stored
             }
           });
         } catch (error) {
@@ -103,7 +95,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       dispatch({ type: 'AUTH_START' });
-      const response = await axios.post('/api/auth/login', { email, password });
+      const response = await api.post('/api/auth/login', { email, password });
       
       const { user, token } = response.data;
       localStorage.setItem('token', token);
@@ -126,7 +118,7 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       dispatch({ type: 'AUTH_START' });
-      const response = await axios.post('/api/auth/register', userData);
+      const response = await api.post('/api/auth/register', userData);
       
       const { user, token } = response.data;
       localStorage.setItem('token', token);
@@ -154,7 +146,7 @@ export const AuthProvider = ({ children }) => {
 
   const updateProfile = async (profileData) => {
     try {
-      const response = await axios.put('/api/auth/profile', profileData);
+      const response = await api.put('/api/auth/profile', profileData);
       dispatch({ type: 'UPDATE_USER', payload: response.data });
       toast.success('Profile updated successfully');
       return { success: true };
@@ -167,7 +159,7 @@ export const AuthProvider = ({ children }) => {
 
   const changePassword = async (currentPassword, newPassword) => {
     try {
-      await axios.put('/api/auth/change-password', {
+      await api.put('/api/auth/change-password', {
         currentPassword,
         newPassword
       });

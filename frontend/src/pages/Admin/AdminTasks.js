@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FiPlus, FiEdit, FiTrash2, FiToggleLeft, FiToggleRight, FiTarget, FiPlay, FiAward, FiTrendingUp, FiUsers, FiBarChart3 } from 'react-icons/fi';
+import api from '../../api/axios';
 
 const AdminTasks = () => {
   const [tasks, setTasks] = useState([]);
@@ -27,13 +28,8 @@ const AdminTasks = () => {
 
   const fetchTasks = async () => {
     try {
-      const response = await fetch('/api/admin/tasks', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setTasks(data);
-      }
+      const { data } = await api.get('/api/admin/tasks');
+      setTasks(data);
     } catch (error) {
       console.error('Error fetching tasks:', error);
     } finally {
@@ -43,13 +39,8 @@ const AdminTasks = () => {
 
   const fetchGames = async () => {
     try {
-      const response = await fetch('/api/games', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setGames(data);
-      }
+      const { data } = await api.get('/api/games');
+      setGames(data);
     } catch (error) {
       console.error('Error fetching games:', error);
     }
@@ -58,16 +49,9 @@ const AdminTasks = () => {
   const handleCreateTask = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch('/api/admin/tasks', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(formData)
-      });
+      const response = await api.post('/api/admin/tasks', formData);
 
-      if (response.ok) {
+      if (response.status >= 200 && response.status < 300) {
         setShowCreateModal(false);
         setFormData({
           title: '', description: '', type: 'game_score', gameId: '', targetScore: '',
@@ -82,11 +66,8 @@ const AdminTasks = () => {
 
   const handleToggleTask = async (taskId) => {
     try {
-      const response = await fetch(`/api/admin/tasks/${taskId}/toggle`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (response.ok) fetchTasks();
+      const response = await api.put(`/api/admin/tasks/${taskId}/toggle`);
+      if (response.status >= 200 && response.status < 300) fetchTasks();
     } catch (error) {
       console.error('Error toggling task:', error);
     }
@@ -95,11 +76,8 @@ const AdminTasks = () => {
   const handleDeleteTask = async (taskId) => {
     if (window.confirm('Are you sure you want to delete this task?')) {
       try {
-        const response = await fetch(`/api/admin/tasks/${taskId}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        });
-        if (response.ok) fetchTasks();
+        const response = await api.delete(`/api/admin/tasks/${taskId}`);
+        if (response.status >= 200 && response.status < 300) fetchTasks();
       } catch (error) {
         console.error('Error deleting task:', error);
       }

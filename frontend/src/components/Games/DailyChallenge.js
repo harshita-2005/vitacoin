@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FiClock, FiAward, FiCheck, FiLock, FiZap, FiTrendingUp } from 'react-icons/fi';
-import axios from 'axios';
+import api from '../../api/axios';
 import toast from 'react-hot-toast';
 import {
   getDailyChallengeStreak,
@@ -37,7 +37,7 @@ const DailyChallenge = ({ onStart }) => {
   const fetchStatus = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/daily-challenge/status');
+      const response = await api.get('/api/daily-challenge/status');
       if (response.data.success) {
         setStatus(response.data);
         setCompletedToday(response.data.isCompleted || isDailyChallengeCompletedToday());

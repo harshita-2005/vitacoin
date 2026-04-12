@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion } from "framer-motion";
 import { FiX, FiPlay, FiPause } from "react-icons/fi";
-import axios from "axios";
+import api from "../../api/axios";
 import toast from "react-hot-toast";
 
 import MathQuiz from "./MathQuiz";
@@ -47,7 +47,7 @@ const GamePlayer = ({
     setStartTime(Date.now());
     const timer = setInterval(() => setTime((prev) => prev + 1), 1000);
     setGameTimer(timer);
-    axios
+    api
       .post("/api/game/start", { game: game.slug || game._id, difficulty: effectiveDifficulty })
       .catch(() => {});
     return () => clearInterval(timer);
@@ -81,7 +81,7 @@ const GamePlayer = ({
       difficulty,
     };
 
-    axios
+    api
       .post("/api/game/start", payload)
       .then(() => {
         // no-op on success

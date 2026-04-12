@@ -13,7 +13,7 @@ import {
   FiTarget
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
-import axios from 'axios';
+import api from '../../api/axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
@@ -72,8 +72,8 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
       const [statsRes, dsRes] = await Promise.all([
-        axios.get('/api/admin/stats'),
-        axios.get('/api/admin/dataset/status', {
+        api.get('/api/admin/stats'),
+        api.get('/api/admin/dataset/status', {
           params: { _: Date.now() },
           headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
         })
@@ -95,7 +95,7 @@ const AdminDashboard = () => {
 
   const refreshDatasetTimestamps = async () => {
     try {
-      const { data } = await axios.get('/api/admin/dataset/status', {
+      const { data } = await api.get('/api/admin/dataset/status', {
         params: { _: Date.now() },
         headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
       });
@@ -131,7 +131,7 @@ const AdminDashboard = () => {
   const handleAddVerbalDataset = async () => {
     setDatasetLoading((prev) => ({ ...prev, verbal: true }));
     try {
-      const res = await axios.post('/api/admin/dataset/verbal', { count: 10 });
+      const res = await api.post('/api/admin/dataset/verbal', { count: 10 });
       if (res.data?.success) {
         toast.success(res.data.message || `Added ${res.data.added} words. Total: ${res.data.total}.`);
         await refreshDatasetTimestamps();
@@ -148,7 +148,7 @@ const AdminDashboard = () => {
   const handleAddCodeBreakerDataset = async () => {
     setDatasetLoading((prev) => ({ ...prev, codebreaker: true }));
     try {
-      const res = await axios.post('/api/admin/dataset/codebreaker', { count: 15 });
+      const res = await api.post('/api/admin/dataset/codebreaker', { count: 15 });
       if (res.data?.success) {
         toast.success(res.data.message || `Added ${res.data.added} words. Total: ${res.data.total}.`);
         await refreshDatasetTimestamps();

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { FiUser, FiMail, FiLock, FiSave, FiEdit3, FiLogOut } from 'react-icons/fi';
+import { FiUser, FiLock, FiSave, FiLogOut } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import CoinDisplay from '../../components/UI/CoinDisplay';

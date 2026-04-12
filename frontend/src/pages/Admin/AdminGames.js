@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FiEdit, FiEye, FiEyeOff } from 'react-icons/fi';
-import axios from 'axios';
+import api from '../../api/axios';
 import toast from 'react-hot-toast';
 import { getAllRewardBases } from '../../utils/gameRewardPreview';
 
@@ -183,9 +183,7 @@ const AdminGames = () => {
 
   const fetchGames = async () => {
     try {
-      const response = await axios.get('/api/admin/games', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      const response = await api.get('/api/admin/games');
       setGames(response.data);
     } catch (error) {
       console.error('Error fetching games:', error);
@@ -252,9 +250,7 @@ const AdminGames = () => {
         gameConfig: nextGameConfig
       };
 
-      await axios.put(`/api/admin/games/${editingGame._id}`, payload, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      await api.put(`/api/admin/games/${editingGame._id}`, payload);
       toast.success('Game settings saved');
       setShowEditModal(false);
       setEditingGame(null);
@@ -268,13 +264,7 @@ const AdminGames = () => {
 
   const toggleGameStatus = async (gameId) => {
     try {
-      await axios.put(
-        `/api/admin/games/${gameId}/toggle`,
-        {},
-        {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        }
-      );
+      await api.put(`/api/admin/games/${gameId}/toggle`, {});
       fetchGames();
       toast.success('Status updated');
     } catch (error) {

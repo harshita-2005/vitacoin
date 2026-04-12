@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { FiGift, FiFilter } from 'react-icons/fi';
-import axios from 'axios';
+import api from '../../api/axios';
 
 /** Brands in the Vitacoin coupon catalog (same order as Coupons page) */
 const COUPON_COMPANIES = [
@@ -25,15 +25,11 @@ const MyCoupons = () => {
     return redeemedCoupons.filter((c) => c.name === companyFilter);
   }, [redeemedCoupons, companyFilter]);
 
-  useEffect(() => {
-    fetchRedeemedCoupons();
-  }, []);
-
-  const fetchRedeemedCoupons = async () => {
+  const fetchRedeemedCoupons = useCallback(async () => {
     try {
       setLoading(true);
       // For now, we'll get transactions with coupon_redemption category
-      const response = await axios.get('/api/transactions?category=coupon_redemption&limit=50');
+      const response = await api.get('/api/transactions?category=coupon_redemption&limit=50');
       
       // Transform transactions into coupon format
       const coupons = response.data.transactions.map(transaction => ({
@@ -51,7 +47,11 @@ const MyCoupons = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchRedeemedCoupons();
+  }, [fetchRedeemedCoupons]);
 
   const extractCouponName = (description) => {
     // Extract coupon name from description like "Redeemed Amazon coupon worth ₹50"
