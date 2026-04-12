@@ -38,7 +38,7 @@ function corsOriginCallback(origin, callback) {
     const normalized = origin.replace(/\/$/, '');
     if (getAllowedOriginsSet().has(normalized)) {
       // With credentials, reflect the exact origin (never use "*")
-      return callback(null, origin);
+      return callback(null, true);
     }
     return callback(new Error(`CORS blocked for origin: ${origin}`));
   } catch (e) {
