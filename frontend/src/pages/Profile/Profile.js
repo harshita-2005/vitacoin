@@ -1,15 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
-import { FiUser, FiLock, FiSave, FiLogOut, FiUpload, FiTrash2 } from 'react-icons/fi';
+import { AnimatePresence, motion } from 'framer-motion';
+import { FiUser, FiLock, FiSave, FiLogOut, FiUpload, FiTrash2, FiX } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import CoinDisplay from '../../components/UI/CoinDisplay';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 
 const MAX_PROFILE_IMAGE_BYTES = 2 * 1024 * 1024;
+const CROP_FRAME_SIZE = 280;
+const CROPPED_OUTPUT_SIZE = 512;
 
 function getInitials(firstName, lastName) {
   return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase() || 'U';
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
 }
 
 const Profile = () => {
@@ -28,6 +34,12 @@ const Profile = () => {
     confirmPassword: ''
   });
   const [errors, setErrors] = useState({});
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropImage, setCropImage] = useState(null);
+  const [cropScale, setCropScale] = useState(1);
+  const [cropX, setCropX] = useState(0);
+  const [cropY, setCropY] = useState(0);
+  const [cropSaving, setCropSaving] = useState(false);
 
   useEffect(() => {
     setProfileForm({
@@ -38,9 +50,42 @@ const Profile = () => {
   }, [user?.firstName, user?.lastName, user?.profilePicture]);
 
   const previewProfilePicture = useMemo(
-    () => profileForm.profilePicture || user?.profilePicture || '',
+    () => profileForm.profilePicture ?? user?.profilePicture ?? '',
     [profileForm.profilePicture, user?.profilePicture]
   );
+
+  const cropBounds = useMemo(() => {
+    if (!cropImage?.width || !cropImage?.height) {
+      return {
+        baseScale: 1,
+        scaledWidth: CROP_FRAME_SIZE,
+        scaledHeight: CROP_FRAME_SIZE,
+        maxOffsetX: 0,
+        maxOffsetY: 0
+      };
+    }
+
+    const baseScale = Math.max(
+      CROP_FRAME_SIZE / cropImage.width,
+      CROP_FRAME_SIZE / cropImage.height
+    );
+    const effectiveScale = baseScale * cropScale;
+    const scaledWidth = cropImage.width * effectiveScale;
+    const scaledHeight = cropImage.height * effectiveScale;
+
+    return {
+      baseScale,
+      scaledWidth,
+      scaledHeight,
+      maxOffsetX: Math.max(0, (scaledWidth - CROP_FRAME_SIZE) / 2),
+      maxOffsetY: Math.max(0, (scaledHeight - CROP_FRAME_SIZE) / 2)
+    };
+  }, [cropImage, cropScale]);
+
+  useEffect(() => {
+    setCropX((prev) => clamp(prev, -cropBounds.maxOffsetX, cropBounds.maxOffsetX));
+    setCropY((prev) => clamp(prev, -cropBounds.maxOffsetY, cropBounds.maxOffsetY));
+  }, [cropBounds.maxOffsetX, cropBounds.maxOffsetY]);
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
@@ -113,7 +158,29 @@ const Profile = () => {
 
     const reader = new FileReader();
     reader.onload = () => {
-      handleInputChange(profileForm, setProfileForm, 'profilePicture', String(reader.result || ''));
+      const src = String(reader.result || '');
+      if (!src) {
+        setErrors(prev => ({ ...prev, profilePicture: 'Could not read that image. Try another file.' }));
+        return;
+      }
+
+      const img = new window.Image();
+      img.onload = () => {
+        setCropImage({
+          src,
+          width: img.naturalWidth || img.width,
+          height: img.naturalHeight || img.height
+        });
+        setCropScale(1);
+        setCropX(0);
+        setCropY(0);
+        setCropModalOpen(true);
+        setErrors(prev => ({ ...prev, profilePicture: '' }));
+      };
+      img.onerror = () => {
+        setErrors(prev => ({ ...prev, profilePicture: 'Could not load that image. Try another file.' }));
+      };
+      img.src = src;
     };
     reader.onerror = () => {
       setErrors(prev => ({ ...prev, profilePicture: 'Could not read that image. Try another file.' }));
@@ -124,6 +191,76 @@ const Profile = () => {
 
   const handleRemoveProfilePicture = () => {
     handleInputChange(profileForm, setProfileForm, 'profilePicture', '');
+  };
+
+  const closeCropModal = () => {
+    if (cropSaving) return;
+    setCropModalOpen(false);
+    setCropImage(null);
+    setCropScale(1);
+    setCropX(0);
+    setCropY(0);
+  };
+
+  const handleCropSave = async () => {
+    if (!cropImage?.src || !cropImage.width || !cropImage.height) return;
+
+    setCropSaving(true);
+    try {
+      const image = new window.Image();
+      image.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = CROPPED_OUTPUT_SIZE;
+        canvas.height = CROPPED_OUTPUT_SIZE;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          setErrors(prev => ({ ...prev, profilePicture: 'Could not prepare cropped image.' }));
+          setCropSaving(false);
+          return;
+        }
+
+        const effectiveScale = cropBounds.baseScale * cropScale;
+        const sourceSize = CROP_FRAME_SIZE / effectiveScale;
+        const sourceX = clamp(
+          (cropImage.width - sourceSize) / 2 - cropX / effectiveScale,
+          0,
+          Math.max(0, cropImage.width - sourceSize)
+        );
+        const sourceY = clamp(
+          (cropImage.height - sourceSize) / 2 - cropY / effectiveScale,
+          0,
+          Math.max(0, cropImage.height - sourceSize)
+        );
+
+        ctx.drawImage(
+          image,
+          sourceX,
+          sourceY,
+          sourceSize,
+          sourceSize,
+          0,
+          0,
+          CROPPED_OUTPUT_SIZE,
+          CROPPED_OUTPUT_SIZE
+        );
+
+        const croppedDataUrl = canvas.toDataURL('image/png');
+        handleInputChange(profileForm, setProfileForm, 'profilePicture', croppedDataUrl);
+        setCropSaving(false);
+        closeCropModal();
+      };
+
+      image.onerror = () => {
+        setErrors(prev => ({ ...prev, profilePicture: 'Could not crop that image. Try another file.' }));
+        setCropSaving(false);
+      };
+
+      image.src = cropImage.src;
+    } catch (error) {
+      setErrors(prev => ({ ...prev, profilePicture: 'Could not crop that image. Try another file.' }));
+      setCropSaving(false);
+    }
   };
 
   const handleLogout = () => {
@@ -186,6 +323,128 @@ const Profile = () => {
           </div>
         </div>
       </motion.div>
+
+      <AnimatePresence>
+        {cropModalOpen && cropImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            onClick={closeCropModal}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-warm-border overflow-hidden"
+            >
+              <div className="flex items-center justify-between border-b border-warm-border px-5 py-4 bg-warm-container/40">
+                <div>
+                  <h3 className="text-lg font-semibold text-warm-text">Adjust Profile Photo</h3>
+                  <p className="text-sm text-warm-textSecondary">Zoom and reposition the image inside the circle, then save it.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeCropModal}
+                  className="rounded-lg p-2 text-warm-textSecondary hover:bg-warm-container"
+                >
+                  <FiX className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-5">
+                <div className="mx-auto flex items-center justify-center">
+                  <div
+                    className="relative overflow-hidden rounded-2xl bg-gray-900/95"
+                    style={{ width: CROP_FRAME_SIZE, height: CROP_FRAME_SIZE }}
+                  >
+                    <img
+                      src={cropImage.src}
+                      alt="Crop preview"
+                      className="absolute left-1/2 top-1/2 select-none pointer-events-none max-w-none"
+                      style={{
+                        width: `${cropBounds.scaledWidth}px`,
+                        height: `${cropBounds.scaledHeight}px`,
+                        transform: `translate(calc(-50% + ${cropX}px), calc(-50% + ${cropY}px))`
+                      }}
+                    />
+                    <div className="absolute inset-0 pointer-events-none">
+                      <div className="absolute inset-0 bg-black/35" />
+                      <div
+                        className="absolute left-1/2 top-1/2 rounded-full border-2 border-white shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]"
+                        style={{
+                          width: CROP_FRAME_SIZE - 20,
+                          height: CROP_FRAME_SIZE - 20,
+                          transform: 'translate(-50%, -50%)'
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-warm-text">Zoom</span>
+                    <input
+                      type="range"
+                      min="1"
+                      max="3"
+                      step="0.01"
+                      value={cropScale}
+                      onChange={(e) => setCropScale(Number(e.target.value))}
+                      className="w-full"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-warm-text">Left / Right</span>
+                    <input
+                      type="range"
+                      min={-cropBounds.maxOffsetX}
+                      max={cropBounds.maxOffsetX}
+                      step="1"
+                      value={cropX}
+                      onChange={(e) => setCropX(Number(e.target.value))}
+                      className="w-full"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-warm-text">Up / Down</span>
+                    <input
+                      type="range"
+                      min={-cropBounds.maxOffsetY}
+                      max={cropBounds.maxOffsetY}
+                      step="1"
+                      value={cropY}
+                      onChange={(e) => setCropY(Number(e.target.value))}
+                      className="w-full"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 border-t border-warm-border bg-warm-container/25 px-5 py-4">
+                <button
+                  type="button"
+                  onClick={closeCropModal}
+                  className="rounded-lg border border-warm-border px-4 py-2 text-sm font-medium text-warm-text hover:bg-warm-container"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCropSave}
+                  disabled={cropSaving}
+                  className="rounded-lg bg-warm-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
+                >
+                  {cropSaving ? 'Saving…' : 'Use this photo'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Tabs */}
       <motion.div
