@@ -244,11 +244,19 @@ const Layout = ({ children }) => {
                 className="relative group"
               >
                 <button className="flex items-center space-x-2 p-2 rounded-xl hover:bg-gray-100 transition-colors">
-                  <div className="w-8 h-8 bg-warm-container rounded-lg flex items-center justify-center">
-                    <span className="text-warm-primary font-semibold text-sm">
-                      {user?.firstName?.charAt(0) || 'U'}
-                    </span>
-                  </div>
+                  {user?.profilePicture ? (
+                    <img
+                      src={user.profilePicture}
+                      alt={`${user?.firstName || 'User'} profile`}
+                      className="w-10 h-10 rounded-full object-cover ring-2 ring-warm-border bg-white"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 bg-warm-container rounded-full flex items-center justify-center">
+                      <span className="text-warm-primary font-semibold text-base">
+                        {user?.firstName?.charAt(0) || 'U'}
+                      </span>
+                    </div>
+                  )}
                   <span className="hidden md:block text-sm font-medium text-warm-text">
                     {user?.firstName}
                   </span>

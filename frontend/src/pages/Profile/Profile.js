@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { FiUser, FiLock, FiSave, FiLogOut, FiUpload, FiTrash2, FiX } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
@@ -40,6 +40,7 @@ const Profile = () => {
   const [cropX, setCropX] = useState(0);
   const [cropY, setCropY] = useState(0);
   const [cropSaving, setCropSaving] = useState(false);
+  const dragStateRef = useRef(null);
 
   useEffect(() => {
     setProfileForm({
@@ -195,11 +196,49 @@ const Profile = () => {
 
   const closeCropModal = () => {
     if (cropSaving) return;
+    dragStateRef.current = null;
     setCropModalOpen(false);
     setCropImage(null);
     setCropScale(1);
     setCropX(0);
     setCropY(0);
+  };
+
+  const handleCropPointerDown = (e) => {
+    dragStateRef.current = {
+      pointerId: e.pointerId,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startCropX: cropX,
+      startCropY: cropY
+    };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+
+  const handleCropPointerMove = (e) => {
+    const drag = dragStateRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+
+    const nextX = clamp(
+      drag.startCropX + (e.clientX - drag.startClientX),
+      -cropBounds.maxOffsetX,
+      cropBounds.maxOffsetX
+    );
+    const nextY = clamp(
+      drag.startCropY + (e.clientY - drag.startClientY),
+      -cropBounds.maxOffsetY,
+      cropBounds.maxOffsetY
+    );
+
+    setCropX(nextX);
+    setCropY(nextY);
+  };
+
+  const handleCropPointerUp = (e) => {
+    if (dragStateRef.current?.pointerId === e.pointerId) {
+      dragStateRef.current = null;
+      e.currentTarget.releasePointerCapture?.(e.pointerId);
+    }
   };
 
   const handleCropSave = async () => {
@@ -357,8 +396,12 @@ const Profile = () => {
               <div className="p-5 space-y-5">
                 <div className="mx-auto flex items-center justify-center">
                   <div
-                    className="relative overflow-hidden rounded-2xl bg-gray-900/95"
+                    className="relative overflow-hidden rounded-2xl bg-gray-900/95 touch-none cursor-grab active:cursor-grabbing"
                     style={{ width: CROP_FRAME_SIZE, height: CROP_FRAME_SIZE }}
+                    onPointerDown={handleCropPointerDown}
+                    onPointerMove={handleCropPointerMove}
+                    onPointerUp={handleCropPointerUp}
+                    onPointerCancel={handleCropPointerUp}
                   >
                     <img
                       src={cropImage.src}
@@ -385,7 +428,7 @@ const Profile = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <label className="block">
+                  <label className="block md:col-span-3">
                     <span className="mb-2 block text-sm font-medium text-warm-text">Zoom</span>
                     <input
                       type="range"
@@ -397,30 +440,9 @@ const Profile = () => {
                       className="w-full"
                     />
                   </label>
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-warm-text">Left / Right</span>
-                    <input
-                      type="range"
-                      min={-cropBounds.maxOffsetX}
-                      max={cropBounds.maxOffsetX}
-                      step="1"
-                      value={cropX}
-                      onChange={(e) => setCropX(Number(e.target.value))}
-                      className="w-full"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-warm-text">Up / Down</span>
-                    <input
-                      type="range"
-                      min={-cropBounds.maxOffsetY}
-                      max={cropBounds.maxOffsetY}
-                      step="1"
-                      value={cropY}
-                      onChange={(e) => setCropY(Number(e.target.value))}
-                      className="w-full"
-                    />
-                  </label>
+                  <p className="md:col-span-3 text-sm text-warm-textSecondary">
+                    Drag the photo inside the circle to adjust its position. Use zoom if needed.
+                  </p>
                 </div>
               </div>
 
