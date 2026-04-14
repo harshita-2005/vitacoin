@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { FiFilter, FiRefreshCw, FiDownload } from 'react-icons/fi';
+import { FiFilter, FiRefreshCw } from 'react-icons/fi';
 import api from '../../api/axios';
 import { useAuth } from '../../contexts/AuthContext';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
@@ -192,14 +192,6 @@ const Transactions = () => {
           >
             <FiRefreshCw className="w-4 h-4 mr-2" />
             Refresh
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="btn-primary"
-          >
-            <FiDownload className="w-4 h-4 mr-2" />
-            Export
           </motion.button>
         </div>
       </div>

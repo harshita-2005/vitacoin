@@ -1289,29 +1289,7 @@ const Challenges = () => {
               </div>
               <div className="flex-1 min-h-0 overflow-y-auto p-0">
                 <div className="px-4 py-3 border-b border-warm-border">
-                  <p className="text-sm font-semibold uppercase tracking-wider mb-1 text-warm-text">Subject</p>
-                  <p className="text-sm text-warm-textSecondary mb-2">Choose an area</p>
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                    {MCQ_SUBJECT_FILTER.map((sub) => (
-                      <label key={sub.key} className="flex items-center gap-2 cursor-pointer group py-0.5">
-                        <input
-                          type="radio"
-                          name="mcq-subject"
-                          checked={mcqSubject === sub.key && !mcqListFilter}
-                          onChange={() => {
-                            setMcqListFilter(null);
-                            setMcqSubject(sub.key);
-                          }}
-                          className="w-4 h-4 border-warm-border text-warm-primary focus:ring-warm-primary shrink-0"
-                        />
-                        <span className="text-base text-warm-text group-hover:text-warm-primary">{sub.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div className="px-4 py-3 border-b border-warm-border">
-                  <p className="text-sm font-semibold uppercase tracking-wider mb-2 text-warm-text">List</p>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 mb-3">
                     <button
                       type="button"
                       onClick={() => setMcqListFilter(mcqListFilter === 'favorites' ? null : 'favorites')}
@@ -1334,6 +1312,25 @@ const Challenges = () => {
                     >
                       <FiCheckCircle className="w-4 h-4" /> Completed
                     </button>
+                  </div>
+                  <p className="text-sm font-semibold uppercase tracking-wider mb-1 text-warm-text">Subject</p>
+                  <p className="text-sm text-warm-textSecondary mb-2">Choose an area</p>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {MCQ_SUBJECT_FILTER.map((sub) => (
+                      <label key={sub.key} className="flex items-center gap-2 cursor-pointer group py-0.5">
+                        <input
+                          type="radio"
+                          name="mcq-subject"
+                          checked={mcqSubject === sub.key && !mcqListFilter}
+                          onChange={() => {
+                            setMcqListFilter(null);
+                            setMcqSubject(sub.key);
+                          }}
+                          className="w-4 h-4 border-warm-border text-warm-primary focus:ring-warm-primary shrink-0"
+                        />
+                        <span className="text-base text-warm-text group-hover:text-warm-primary">{sub.label}</span>
+                      </label>
+                    ))}
                   </div>
                 </div>
                 {showMcqTopicFilter && (

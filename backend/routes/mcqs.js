@@ -37,6 +37,7 @@ router.post('/complete', protect, async (req, res) => {
     }
 
     const reward = Math.min(MAX_REWARD, Math.max(MIN_REWARD, parseInt(requestedReward, 10) || 10));
+    const xpAwarded = Math.min(40, Math.max(2, Math.round(reward / 2)));
 
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -53,6 +54,7 @@ router.post('/complete', protect, async (req, res) => {
     user.completedMcqs.push({ mcqId, completedAt: new Date() });
     user.coinBalance = balanceBefore + reward;
     user.totalEarned = (user.totalEarned || 0) + reward;
+    addXpAndLevel(user, xpAwarded);
     await user.save();
 
     const subjectLabel = subject || 'CS Fundamentals';
