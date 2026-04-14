@@ -96,7 +96,7 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-secondary-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-warm-background py-12 px-4 sm:px-6 lg:px-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -109,15 +109,15 @@ const Register = () => {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-            className="mx-auto h-16 w-16 bg-gradient-to-r from-primary-600 to-secondary-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg"
+            className="mx-auto h-16 w-16 bg-warm-primary rounded-2xl flex items-center justify-center mb-6 shadow-lg"
           >
             <span className="text-white font-bold text-2xl">V</span>
           </motion.div>
           
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">
+          <h2 className="text-3xl font-bold text-warm-text mb-2">
             Create your account
           </h2>
-          <p className="text-gray-600">
+          <p className="text-warm-textSecondary">
             Join Vitacoin and start earning rewards
           </p>
         </div>
@@ -266,13 +266,13 @@ const Register = () => {
                 />
                 <button
                   type="button"
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 p-1 rounded-lg hover:bg-gray-100 transition-colors"
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 p-1 rounded-lg hover:bg-warm-container transition-colors"
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
-                    <FiEyeOff className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                    <FiEyeOff className="w-5 h-5 text-warm-textSecondary hover:text-warm-text" />
                   ) : (
-                    <FiEye className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                    <FiEye className="w-5 h-5 text-warm-textSecondary hover:text-warm-text" />
                   )}
                 </button>
               </div>
@@ -307,13 +307,13 @@ const Register = () => {
                 />
                 <button
                   type="button"
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 p-1 rounded-lg hover:bg-gray-100 transition-colors"
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 p-1 rounded-lg hover:bg-warm-container transition-colors"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                 >
                   {showConfirmPassword ? (
-                    <FiEyeOff className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                    <FiEyeOff className="w-5 h-5 text-warm-textSecondary hover:text-warm-text" />
                   ) : (
-                    <FiEye className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                    <FiEye className="w-5 h-5 text-warm-textSecondary hover:text-warm-text" />
                   )}
                 </button>
               </div>
@@ -335,7 +335,7 @@ const Register = () => {
             whileTap={{ scale: 0.98 }}
             type="submit"
             disabled={loading}
-            className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-semibold rounded-xl text-white bg-gradient-to-r from-primary-600 to-secondary-600 hover:from-primary-700 hover:to-secondary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:shadow-xl"
+            className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-semibold rounded-xl text-white bg-warm-primary hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-warm-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:shadow-xl"
           >
             {loading ? (
               <LoadingSpinner size="sm" className="text-white" />
@@ -346,11 +346,11 @@ const Register = () => {
 
           {/* Links */}
           <div className="text-center">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-warm-textSecondary">
               Already have an account?{' '}
               <Link
                 to="/login"
-                className="font-semibold text-primary-600 hover:text-primary-500 transition-colors duration-200"
+                className="font-semibold text-warm-primary hover:opacity-80 transition-colors duration-200"
               >
                 Sign in
               </Link>
@@ -363,24 +363,24 @@ const Register = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className="mt-8 p-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200"
+          className="mt-8 p-6 bg-warm-container rounded-xl border border-warm-border shadow-sm"
         >
-          <h3 className="text-sm font-semibold text-green-900 mb-3">What you'll get:</h3>
-          <div className="space-y-2 text-xs text-green-700">
+          <h3 className="text-sm font-semibold text-warm-text mb-3">What you'll get:</h3>
+          <div className="space-y-2 text-xs text-warm-textSecondary">
             <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <div className="w-2 h-2 bg-warm-primary rounded-full"></div>
               <span>Real-time coin balance tracking</span>
             </div>
             <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <div className="w-2 h-2 bg-warm-secondary rounded-full"></div>
               <span>Earn badges and achievements</span>
             </div>
             <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <div className="w-2 h-2 bg-warm-primary rounded-full"></div>
               <span>Compete on leaderboards</span>
             </div>
             <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <div className="w-2 h-2 bg-warm-secondary rounded-full"></div>
               <span>Detailed transaction history</span>
             </div>
           </div>

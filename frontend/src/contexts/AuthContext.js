@@ -184,6 +184,46 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const requestPasswordReset = async (email) => {
+    try {
+      const response = await api.post('/api/auth/forgot-password', { email });
+      toast.success(response.data.message || 'Password reset OTP sent');
+      return { success: true };
+    } catch (error) {
+      const message = error.response?.data?.error || 'Could not send password reset OTP';
+      toast.error(message);
+      return { success: false, error: message };
+    }
+  };
+
+  const verifyPasswordResetOtp = async (email, otp) => {
+    try {
+      const response = await api.post('/api/auth/verify-reset-otp', { email, otp });
+      toast.success(response.data.message || 'OTP verified successfully');
+      return { success: true };
+    } catch (error) {
+      const message = error.response?.data?.error || 'OTP verification failed';
+      toast.error(message);
+      return { success: false, error: message };
+    }
+  };
+
+  const resetPasswordWithOtp = async (email, otp, newPassword) => {
+    try {
+      const response = await api.post('/api/auth/reset-password', {
+        email,
+        otp,
+        newPassword
+      });
+      toast.success(response.data.message || 'Password reset successfully');
+      return { success: true };
+    } catch (error) {
+      const message = error.response?.data?.error || 'Password reset failed';
+      toast.error(message);
+      return { success: false, error: message };
+    }
+  };
+
   const updateBalance = (newBalance) => {
     dispatch({ type: 'UPDATE_BALANCE', payload: { newBalance } });
   };
@@ -209,6 +249,9 @@ export const AuthProvider = ({ children }) => {
     logout,
     updateProfile,
     changePassword,
+    requestPasswordReset,
+    verifyPasswordResetOtp,
+    resetPasswordWithOtp,
     updateBalance,
     updateExperiencePoints,
     updateUser

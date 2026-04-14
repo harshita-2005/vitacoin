@@ -1,9 +1,31 @@
+const crypto = require('crypto');
 const express = require('express');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
 const { protect, generateToken, extractToken } = require('../middleware/auth');
 const { setAuthCookie, clearAuthCookie } = require('../utils/authCookie');
+const { isMailConfigured, sendPasswordResetOtpEmail } = require('../services/emailService');
 const router = express.Router();
+
+const PASSWORD_RESET_OTP_LENGTH = 6;
+const PASSWORD_RESET_OTP_EXPIRY_MINUTES = parseInt(process.env.PASSWORD_RESET_OTP_EXPIRY_MINUTES, 10) || 10;
+const PASSWORD_RESET_OTP_RESEND_COOLDOWN_SECONDS = parseInt(process.env.PASSWORD_RESET_OTP_RESEND_COOLDOWN_SECONDS, 10) || 60;
+
+function normalizeEmail(rawEmail) {
+  return typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
+}
+
+function generateNumericOtp(length = PASSWORD_RESET_OTP_LENGTH) {
+  let otp = '';
+  while (otp.length < length) {
+    otp += crypto.randomInt(0, 10).toString();
+  }
+  return otp.slice(0, length);
+}
+
+function hashOtp(otp) {
+  return crypto.createHash('sha256').update(String(otp)).digest('hex');
+}
 
 // @desc    Log out (clear httpOnly auth cookie)
 // @route   POST /api/auth/logout
@@ -76,8 +98,7 @@ router.post('/login', async (req, res) => {
   try {
     const rawEmail = req.body?.email;
     const password = req.body?.password;
-    const email =
-      typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
+    const email = normalizeEmail(rawEmail);
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
@@ -163,6 +184,172 @@ router.post('/login', async (req, res) => {
     console.error('Login error:', error);
     res.status(500).json({ 
       error: 'Server error during login',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// @desc    Request password reset OTP by email
+// @route   POST /api/auth/forgot-password
+// @access  Public
+router.post('/forgot-password', async (req, res) => {
+  try {
+    if (!isMailConfigured()) {
+      return res.status(500).json({
+        error: 'Password reset email is not configured on the server'
+      });
+    }
+
+    const email = normalizeEmail(req.body?.email);
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const user = await User.findOne({ email }).select(
+      '+passwordResetOtpHash +passwordResetOtpExpiresAt +passwordResetOtpVerifiedAt +passwordResetOtpLastSentAt'
+    );
+
+    if (!user) {
+      return res.json({
+        message: 'If an account exists for this email, an OTP has been sent.'
+      });
+    }
+
+    const now = Date.now();
+    const lastSentAt = user.passwordResetOtpLastSentAt ? user.passwordResetOtpLastSentAt.getTime() : 0;
+    const cooldownMs = PASSWORD_RESET_OTP_RESEND_COOLDOWN_SECONDS * 1000;
+
+    if (lastSentAt && now - lastSentAt < cooldownMs) {
+      return res.status(429).json({
+        error: `Please wait ${PASSWORD_RESET_OTP_RESEND_COOLDOWN_SECONDS} seconds before requesting another OTP`
+      });
+    }
+
+    const otp = generateNumericOtp();
+    user.passwordResetOtpHash = hashOtp(otp);
+    user.passwordResetOtpExpiresAt = new Date(now + PASSWORD_RESET_OTP_EXPIRY_MINUTES * 60 * 1000);
+    user.passwordResetOtpVerifiedAt = null;
+    user.passwordResetOtpLastSentAt = new Date(now);
+    await user.save();
+
+    await sendPasswordResetOtpEmail({
+      to: user.email,
+      firstName: user.firstName,
+      otp,
+      expiresInMinutes: PASSWORD_RESET_OTP_EXPIRY_MINUTES
+    });
+
+    return res.json({
+      message: 'If an account exists for this email, an OTP has been sent.'
+    });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    return res.status(500).json({
+      error: 'Server error while requesting password reset',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// @desc    Verify password reset OTP
+// @route   POST /api/auth/verify-reset-otp
+// @access  Public
+router.post('/verify-reset-otp', async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body?.email);
+    const otp = typeof req.body?.otp === 'string' ? req.body.otp.trim() : '';
+
+    if (!email || !otp) {
+      return res.status(400).json({ error: 'Email and OTP are required' });
+    }
+
+    const user = await User.findOne({ email }).select(
+      '+passwordResetOtpHash +passwordResetOtpExpiresAt +passwordResetOtpVerifiedAt'
+    );
+
+    if (!user || !user.passwordResetOtpHash || !user.passwordResetOtpExpiresAt) {
+      return res.status(400).json({ error: 'No active password reset request found' });
+    }
+
+    if (user.passwordResetOtpExpiresAt.getTime() < Date.now()) {
+      user.passwordResetOtpHash = null;
+      user.passwordResetOtpExpiresAt = null;
+      user.passwordResetOtpVerifiedAt = null;
+      await user.save();
+      return res.status(400).json({ error: 'OTP has expired. Please request a new one.' });
+    }
+
+    if (user.passwordResetOtpHash !== hashOtp(otp)) {
+      return res.status(400).json({ error: 'Invalid OTP' });
+    }
+
+    user.passwordResetOtpVerifiedAt = new Date();
+    await user.save();
+
+    return res.json({ message: 'OTP verified successfully' });
+  } catch (error) {
+    console.error('Verify reset OTP error:', error);
+    return res.status(500).json({
+      error: 'Server error while verifying OTP',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// @desc    Reset password using verified OTP
+// @route   POST /api/auth/reset-password
+// @access  Public
+router.post('/reset-password', async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body?.email);
+    const otp = typeof req.body?.otp === 'string' ? req.body.otp.trim() : '';
+    const newPassword =
+      typeof req.body?.newPassword === 'string' ? req.body.newPassword : '';
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ error: 'Email, OTP, and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+    }
+
+    const user = await User.findOne({ email }).select(
+      '+password +passwordResetOtpHash +passwordResetOtpExpiresAt +passwordResetOtpVerifiedAt'
+    );
+
+    if (!user || !user.passwordResetOtpHash || !user.passwordResetOtpExpiresAt) {
+      return res.status(400).json({ error: 'No active password reset request found' });
+    }
+
+    if (user.passwordResetOtpExpiresAt.getTime() < Date.now()) {
+      user.passwordResetOtpHash = null;
+      user.passwordResetOtpExpiresAt = null;
+      user.passwordResetOtpVerifiedAt = null;
+      await user.save();
+      return res.status(400).json({ error: 'OTP has expired. Please request a new one.' });
+    }
+
+    if (user.passwordResetOtpHash !== hashOtp(otp)) {
+      return res.status(400).json({ error: 'Invalid OTP' });
+    }
+
+    if (!user.passwordResetOtpVerifiedAt) {
+      return res.status(400).json({ error: 'Please verify the OTP before setting a new password' });
+    }
+
+    user.password = newPassword;
+    user.passwordResetOtpHash = null;
+    user.passwordResetOtpExpiresAt = null;
+    user.passwordResetOtpVerifiedAt = null;
+    user.passwordResetOtpLastSentAt = null;
+    await user.save();
+
+    return res.json({ message: 'Password reset successfully' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    return res.status(500).json({
+      error: 'Server error while resetting password',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
