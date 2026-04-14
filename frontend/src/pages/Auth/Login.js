@@ -223,37 +223,6 @@ const Login = () => {
           </div>
         </motion.form>
 
-        {/* Demo Accounts Info */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mt-8 space-y-4"
-        >
-          {/* Demo User Account */}
-          <div className="p-4 bg-warm-container rounded-xl border border-warm-border shadow-sm">
-            <h3 className="text-sm font-semibold text-warm-text mb-2">Demo Account (Regular User)</h3>
-            <p className="text-xs text-warm-textSecondary mb-2">
-              Test the application as a regular user:
-            </p>
-            <div className="text-xs text-warm-text space-y-1">
-              <p><strong>Email:</strong> demo@vitacoin.com</p>
-              <p><strong>Password:</strong> demo123</p>
-            </div>
-          </div>
-
-          {/* Admin Account */}
-          <div className="p-4 bg-warm-container rounded-xl border border-warm-border shadow-sm">
-            <h3 className="text-sm font-semibold text-warm-text mb-2">Admin Account</h3>
-            <p className="text-xs text-warm-textSecondary mb-2">
-              Access admin dashboard and management features:
-            </p>
-            <div className="text-xs text-warm-text space-y-1">
-              <p><strong>Email:</strong> admin@vitacoin.com</p>
-              <p><strong>Password:</strong> admin123</p>
-            </div>
-          </div>
-        </motion.div>
       </motion.div>
     </div>
   );
