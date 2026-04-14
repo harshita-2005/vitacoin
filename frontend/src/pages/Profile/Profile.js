@@ -1,10 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { FiUser, FiLock, FiSave, FiLogOut } from 'react-icons/fi';
+import { FiUser, FiLock, FiSave, FiLogOut, FiUpload, FiTrash2 } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import CoinDisplay from '../../components/UI/CoinDisplay';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
+
+const MAX_PROFILE_IMAGE_BYTES = 2 * 1024 * 1024;
+
+function getInitials(firstName, lastName) {
+  return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase() || 'U';
+}
 
 const Profile = () => {
   const { user, updateProfile, changePassword, logout } = useAuth();
@@ -22,6 +28,19 @@ const Profile = () => {
     confirmPassword: ''
   });
   const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    setProfileForm({
+      firstName: user?.firstName || '',
+      lastName: user?.lastName || '',
+      profilePicture: user?.profilePicture || ''
+    });
+  }, [user?.firstName, user?.lastName, user?.profilePicture]);
+
+  const previewProfilePicture = useMemo(
+    () => profileForm.profilePicture || user?.profilePicture || '',
+    [profileForm.profilePicture, user?.profilePicture]
+  );
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
@@ -76,6 +95,37 @@ const Profile = () => {
     }
   };
 
+  const handleProfilePictureUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setErrors(prev => ({ ...prev, profilePicture: 'Please choose an image file' }));
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > MAX_PROFILE_IMAGE_BYTES) {
+      setErrors(prev => ({ ...prev, profilePicture: 'Image must be 2 MB or smaller' }));
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      handleInputChange(profileForm, setProfileForm, 'profilePicture', String(reader.result || ''));
+    };
+    reader.onerror = () => {
+      setErrors(prev => ({ ...prev, profilePicture: 'Could not read that image. Try another file.' }));
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleRemoveProfilePicture = () => {
+    handleInputChange(profileForm, setProfileForm, 'profilePicture', '');
+  };
+
   const handleLogout = () => {
     if (window.confirm('Are you sure you want to logout?')) {
       logout();
@@ -104,11 +154,19 @@ const Profile = () => {
       >
         <div className="card-body">
           <div className="flex items-center space-x-6">
-            <div className="w-20 h-20 bg-warm-primary rounded-full flex items-center justify-center">
-              <span className="text-white font-bold text-2xl">
-                {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
-              </span>
-            </div>
+            {previewProfilePicture ? (
+              <img
+                src={previewProfilePicture}
+                alt={`${user?.firstName || 'User'} ${user?.lastName || ''}`.trim()}
+                className="w-20 h-20 rounded-full object-cover ring-2 ring-warm-border"
+              />
+            ) : (
+              <div className="w-20 h-20 bg-warm-primary rounded-full flex items-center justify-center">
+                <span className="text-white font-bold text-2xl">
+                  {getInitials(user?.firstName, user?.lastName)}
+                </span>
+              </div>
+            )}
             <div className="flex-1">
               <h3 className="text-xl font-semibold text-warm-text">
                 {user?.firstName} {user?.lastName}
@@ -212,17 +270,52 @@ const Profile = () => {
 
               <div>
                 <label className="block text-sm font-medium text-warm-text mb-1">
-                  Profile Picture URL
+                  Profile Picture
                 </label>
-                <input
-                  type="url"
-                  value={profileForm.profilePicture}
-                  onChange={(e) => handleInputChange(profileForm, setProfileForm, 'profilePicture', e.target.value)}
-                  className="input"
-                  placeholder="https://example.com/avatar.jpg"
-                />
+                <div className="flex flex-col gap-3 rounded-xl border border-warm-border bg-warm-container/20 p-4">
+                  <div className="flex items-center gap-4">
+                    {previewProfilePicture ? (
+                      <img
+                        src={previewProfilePicture}
+                        alt="Profile preview"
+                        className="w-16 h-16 rounded-full object-cover ring-2 ring-warm-border"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 bg-warm-primary rounded-full flex items-center justify-center">
+                        <span className="text-white font-bold text-lg">
+                          {getInitials(profileForm.firstName || user?.firstName, profileForm.lastName || user?.lastName)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-warm-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+                        <FiUpload className="w-4 h-4" />
+                        Upload from device
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleProfilePictureUpload}
+                          className="hidden"
+                        />
+                      </label>
+                      {previewProfilePicture && (
+                        <button
+                          type="button"
+                          onClick={handleRemoveProfilePicture}
+                          className="inline-flex items-center gap-2 rounded-lg border border-warm-border px-4 py-2 text-sm font-medium text-warm-text hover:bg-warm-container"
+                        >
+                          <FiTrash2 className="w-4 h-4" />
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                {errors.profilePicture && (
+                  <p className="mt-1 text-sm text-danger-600">{errors.profilePicture}</p>
+                )}
                 <p className="mt-1 text-sm text-warm-textSecondary">
-                  Enter a URL to your profile picture
+                  Upload an image from this device. JPG, PNG, or WebP up to 2 MB.
                 </p>
               </div>
 

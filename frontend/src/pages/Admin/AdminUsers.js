@@ -34,6 +34,10 @@ function difficultyPillClass(diff) {
   return 'bg-warm-container text-warm-text ring-warm-border/40';
 }
 
+function getInitials(firstName, lastName) {
+  return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase() || 'U';
+}
+
 const AdminUsers = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -393,6 +397,25 @@ const AdminUsers = () => {
                       <h3 className="text-[11px] font-bold uppercase tracking-widest text-warm-textSecondary mb-4">
                         Account
                       </h3>
+                      <div className="flex items-center gap-3 mb-4">
+                        {selectedUser.profilePicture ? (
+                          <img
+                            src={selectedUser.profilePicture}
+                            alt={`${selectedUser.firstName || 'User'} ${selectedUser.lastName || ''}`.trim()}
+                            className="w-16 h-16 rounded-full object-cover ring-2 ring-warm-border/70 bg-white"
+                          />
+                        ) : (
+                          <div className="w-16 h-16 rounded-full bg-warm-primary text-white flex items-center justify-center text-lg font-bold">
+                            {getInitials(selectedUser.firstName, selectedUser.lastName)}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-base font-bold text-warm-text break-words">
+                            {selectedUser.firstName} {selectedUser.lastName}
+                          </p>
+                          <p className="text-sm text-warm-textSecondary break-all">@{selectedUser.username}</p>
+                        </div>
+                      </div>
                       <dl className="space-y-3.5">
                         <div className="grid grid-cols-1 sm:grid-cols-[7.5rem_1fr] gap-2 sm:gap-3 sm:items-start">
                           <dt className="text-[11px] font-bold uppercase tracking-wide text-warm-textSecondary">
@@ -489,9 +512,15 @@ const AdminUsers = () => {
                         {selectedUser.profilePicture && (
                           <div className="pt-1 border-t border-warm-border/40">
                             <dt className="text-[11px] font-bold uppercase tracking-wide text-warm-textSecondary mb-1">
-                              Avatar URL
+                              Profile photo
                             </dt>
-                            <dd className="text-xs font-semibold text-warm-text break-all">{selectedUser.profilePicture}</dd>
+                            <dd>
+                              <img
+                                src={selectedUser.profilePicture}
+                                alt={`${selectedUser.firstName || 'User'} ${selectedUser.lastName || ''}`.trim()}
+                                className="w-24 h-24 rounded-xl object-cover ring-1 ring-warm-border/60 bg-white"
+                              />
+                            </dd>
                           </div>
                         )}
                       </dl>
