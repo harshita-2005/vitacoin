@@ -1,53 +1,40 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-let transporterPromise = null;
+let resendClient = null;
 
 function getMailConfig() {
   return {
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true',
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-    from: process.env.EMAIL_FROM || process.env.SMTP_USER
+    apiKey: process.env.RESEND_API_KEY,
+    from: process.env.EMAIL_FROM || 'Vitacoin <onboarding@resend.dev>'
   };
 }
 
 function isMailConfigured() {
   const config = getMailConfig();
-  return Boolean(config.host && config.port && config.user && config.pass && config.from);
+  return Boolean(config.apiKey && config.from);
 }
 
-async function getTransporter() {
+function getResendClient() {
   if (!isMailConfigured()) {
-    throw new Error('SMTP is not configured');
+    throw new Error('Resend is not configured');
   }
 
-  if (!transporterPromise) {
-    const config = getMailConfig();
-    transporterPromise = nodemailer.createTransport({
-      host: config.host,
-      port: config.port,
-      secure: config.secure,
-      auth: {
-        user: config.user,
-        pass: config.pass
-      }
-    });
+  if (!resendClient) {
+    resendClient = new Resend(process.env.RESEND_API_KEY);
   }
 
-  return transporterPromise;
+  return resendClient;
 }
 
 async function sendPasswordResetOtpEmail({ to, firstName, otp, expiresInMinutes }) {
-  const transporter = await getTransporter();
+  const resend = getResendClient();
   const { from } = getMailConfig();
   const appName = process.env.APP_NAME || 'Vitacoin';
   const greetingName = firstName || 'there';
 
-  return transporter.sendMail({
+  const { data, error } = await resend.emails.send({
     from,
-    to,
+    to: [to],
     subject: `${appName} password reset OTP`,
     text: [
       `Hello ${greetingName},`,
@@ -73,6 +60,12 @@ async function sendPasswordResetOtpEmail({ to, firstName, otp, expiresInMinutes 
       </div>
     `
   });
+
+  if (error) {
+    throw new Error(error.message || 'Failed to send email with Resend');
+  }
+
+  return data;
 }
 
 module.exports = {
