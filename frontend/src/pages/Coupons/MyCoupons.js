@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { FiGift, FiFilter } from 'react-icons/fi';
+import { FiGift, FiFilter, FiCopy, FiCheck } from 'react-icons/fi';
 import api from '../../api/axios';
 
 /** Brands in the Vitacoin coupon catalog (same order as Coupons page) */
@@ -13,12 +13,22 @@ const COUPON_COMPANIES = [
   'Myntra'
 ];
 
+const COUPON_DETAILS = {
+  Amazon: { couponCode: 'AMZ50OFF' },
+  Flipkart: { couponCode: 'FLIP40' },
+  Zepto: { couponCode: 'ZEP30' },
+  Swiggy: { couponCode: 'SWIG60' },
+  Zomato: { couponCode: 'ZOM55' },
+  Myntra: { couponCode: 'MYN45' }
+};
+
 const FILTER_ALL = 'all';
 
 const MyCoupons = () => {
   const [redeemedCoupons, setRedeemedCoupons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [companyFilter, setCompanyFilter] = useState(FILTER_ALL);
+  const [copiedCouponId, setCopiedCouponId] = useState(null);
 
   const filteredCoupons = useMemo(() => {
     if (companyFilter === FILTER_ALL) return redeemedCoupons;
@@ -38,7 +48,8 @@ const MyCoupons = () => {
         value: extractCouponValue(transaction.description),
         cost: Math.abs(transaction.amount || 0),
         redeemedAt: transaction.createdAt,
-        description: transaction.description
+        description: transaction.description,
+        couponCode: COUPON_DETAILS[extractCouponName(transaction.description)]?.couponCode || null
       }));
 
       setRedeemedCoupons(coupons);
@@ -64,6 +75,19 @@ const MyCoupons = () => {
     const match = description.match(/worth (₹\d+)/);
     return match ? match[1] : 'Unknown Value';
   };
+
+  const handleCopyCouponCode = useCallback(async (couponId, couponCode) => {
+    if (!couponCode) return;
+    try {
+      await navigator.clipboard.writeText(couponCode);
+      setCopiedCouponId(couponId);
+      window.setTimeout(() => {
+        setCopiedCouponId((current) => (current === couponId ? null : current));
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to copy coupon code:', error);
+    }
+  }, []);
 
   if (loading) {
     return (
@@ -152,6 +176,30 @@ const MyCoupons = () => {
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">{coupon.name}</h3>
                     <p className="text-gray-600">{coupon.description}</p>
+                    {coupon.couponCode && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-1 font-mono text-sm text-gray-700">
+                          {coupon.couponCode}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyCouponCode(coupon.id, coupon.couponCode)}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-2.5 py-1 text-sm font-medium text-primary-600 hover:bg-primary-50 transition-colors"
+                        >
+                          {copiedCouponId === coupon.id ? (
+                            <>
+                              <FiCheck className="w-4 h-4" />
+                              Copied
+                            </>
+                          ) : (
+                            <>
+                              <FiCopy className="w-4 h-4" />
+                              Copy code
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
                     <p className="text-sm text-gray-500">
                       Redeemed on {new Date(coupon.redeemedAt).toLocaleDateString()}
                     </p>
