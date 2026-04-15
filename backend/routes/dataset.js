@@ -5,9 +5,9 @@ const { getVerbalDynamic, getCodeBreakerDynamic } = require('../services/dataset
 const router = express.Router();
 
 /** GET /api/dataset/verbal - dynamic words for Verbal IQ (merge with frontend default). */
-router.get('/verbal', protect, (req, res) => {
+router.get('/verbal', protect, async (req, res) => {
   try {
-    const words = getVerbalDynamic();
+    const words = await getVerbalDynamic();
     res.json({ success: true, words });
   } catch (error) {
     console.error('Dataset verbal get error:', error);
@@ -16,9 +16,9 @@ router.get('/verbal', protect, (req, res) => {
 });
 
 /** GET /api/dataset/codebreaker - dynamic words for Code Breaker. */
-router.get('/codebreaker', protect, (req, res) => {
+router.get('/codebreaker', protect, async (req, res) => {
   try {
-    const words = getCodeBreakerDynamic();
+    const words = await getCodeBreakerDynamic();
     res.json({ success: true, words });
   } catch (error) {
     console.error('Dataset codebreaker get error:', error);

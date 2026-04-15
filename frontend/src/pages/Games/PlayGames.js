@@ -10,6 +10,7 @@ import LevelSelector from '../../components/Games/LevelSelector';
 import DailyChallenge, { setDailyChallengeCompleted } from '../../components/Games/DailyChallenge';
 import DailyChallengeSession from '../../components/Games/DailyChallengeSession';
 import { setExtendedWordBank } from '../../utils/verbalEngine';
+import { setExtendedCodeBreakerWords } from '../../utils/codeBreakerEngine';
 import { getDailyChallengeProgress } from '../../utils/dailyChallengeStorage';
 import toast from 'react-hot-toast';
 
@@ -57,15 +58,19 @@ const PlayGames = () => {
   }, []);
 
   useEffect(() => {
-    const fetchVerbalDataset = async () => {
+    const fetchDynamicDatasets = async () => {
       try {
-        const r = await api.get('/api/dataset/verbal');
-        if (r.data?.words?.length) setExtendedWordBank(r.data.words);
+        const [verbalRes, codeBreakerRes] = await Promise.all([
+          api.get('/api/dataset/verbal'),
+          api.get('/api/dataset/codebreaker')
+        ]);
+        setExtendedWordBank(verbalRes.data?.words || []);
+        setExtendedCodeBreakerWords(codeBreakerRes.data?.words || []);
       } catch (_) {
-        // ignore; use default word bank only
+        // ignore; use default local datasets only
       }
     };
-    fetchVerbalDataset();
+    fetchDynamicDatasets();
   }, []);
 
   // Fetch games after auth is ready (avoids 401 before session cookie is used on first paint)

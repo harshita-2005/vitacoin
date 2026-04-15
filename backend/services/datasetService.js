@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const DatasetState = require('../models/DatasetState');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const VERBAL_PATH = path.join(DATA_DIR, 'dynamicWordBank.json');
@@ -28,6 +29,31 @@ function readJsonSafe(filePath, defaultValue = []) {
 function writeJson(filePath, data) {
   ensureDataDir();
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+}
+
+async function getDatasetDocument(key) {
+  return DatasetState.findOne({ key });
+}
+
+async function setDatasetItems(key, items) {
+  return DatasetState.findOneAndUpdate(
+    { key },
+    { $set: { items } },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+}
+
+async function getDatasetItems(key, filePath) {
+  const doc = await getDatasetDocument(key);
+  if (doc) {
+    return Array.isArray(doc.items) ? doc.items : [];
+  }
+
+  const fallbackItems = readJsonSafe(filePath);
+  if (fallbackItems.length > 0) {
+    await setDatasetItems(key, fallbackItems);
+  }
+  return fallbackItems;
 }
 
 /** Fetch JSON from URL (GET). */
@@ -93,7 +119,7 @@ async function fetchVerbalEntry(word) {
  * @returns {{ added: number, total: number }}
  */
 async function addVerbalFromApi(count = 10) {
-  const existing = readJsonSafe(VERBAL_PATH);
+  const existing = await getDatasetItems('verbal', VERBAL_PATH);
   const existingWords = new Set(existing.map((e) => e.word.toLowerCase()));
 
   const toFetch = pickRandom(
@@ -116,6 +142,7 @@ async function addVerbalFromApi(count = 10) {
   }
 
   const merged = [...existing, ...newEntries];
+  await setDatasetItems('verbal', merged);
   writeJson(VERBAL_PATH, merged);
   return { added: newEntries.length, total: merged.length };
 }
@@ -123,8 +150,8 @@ async function addVerbalFromApi(count = 10) {
 /**
  * Get all dynamic verbal entries (for frontend merge).
  */
-function getVerbalDynamic() {
-  return readJsonSafe(VERBAL_PATH);
+async function getVerbalDynamic() {
+  return getDatasetItems('verbal', VERBAL_PATH);
 }
 
 /**
@@ -132,7 +159,7 @@ function getVerbalDynamic() {
  * Uses Datamuse "sounds like" or random words to expand.
  */
 async function addCodeBreakerFromApi(count = 15) {
-  const existing = readJsonSafe(CODEBREAKER_PATH);
+  const existing = await getDatasetItems('codebreaker', CODEBREAKER_PATH);
   const existingSet = new Set(existing.map((w) => (typeof w === 'string' ? w : w.word || w).toUpperCase()));
 
   const seedWords = ['code', 'word', 'key', 'data', 'byte', 'file', 'link', 'path', 'loop', 'node', 'tree', 'list', 'sort', 'find', 'hash'];
@@ -164,24 +191,33 @@ async function addCodeBreakerFromApi(count = 15) {
   }
 
   const merged = [...existing, ...newWords];
+  await setDatasetItems('codebreaker', merged);
   writeJson(CODEBREAKER_PATH, merged);
   return { added: newWords.length, total: merged.length };
 }
 
-function getCodeBreakerDynamic() {
-  return readJsonSafe(CODEBREAKER_PATH);
+async function getCodeBreakerDynamic() {
+  return getDatasetItems('codebreaker', CODEBREAKER_PATH);
 }
 
-/** ISO timestamps from file mtimes (reflects last import or any change to the JSON files). */
-function getDatasetFileTimestamps() {
+/** ISO timestamps from MongoDB first, then JSON file mtimes as fallback. */
+async function getDatasetFileTimestamps() {
   ensureDataDir();
   let verbalLastAt = null;
   let codeBreakerLastAt = null;
   try {
-    if (fs.existsSync(VERBAL_PATH)) {
+    const [verbalDoc, codebreakerDoc] = await Promise.all([
+      getDatasetDocument('verbal'),
+      getDatasetDocument('codebreaker')
+    ]);
+    if (verbalDoc?.updatedAt) {
+      verbalLastAt = verbalDoc.updatedAt.toISOString();
+    } else if (fs.existsSync(VERBAL_PATH)) {
       verbalLastAt = fs.statSync(VERBAL_PATH).mtime.toISOString();
     }
-    if (fs.existsSync(CODEBREAKER_PATH)) {
+    if (codebreakerDoc?.updatedAt) {
+      codeBreakerLastAt = codebreakerDoc.updatedAt.toISOString();
+    } else if (fs.existsSync(CODEBREAKER_PATH)) {
       codeBreakerLastAt = fs.statSync(CODEBREAKER_PATH).mtime.toISOString();
     }
   } catch (e) {

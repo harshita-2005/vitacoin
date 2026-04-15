@@ -96,6 +96,20 @@ const WORD_LIST = [
   "MOTE", "ROTE", "TOTE", "MODE", "CODE", "NODE", "RODE", "LODE", "BODE"
 ];
 
+let extendedWordList = [];
+
+export function setExtendedCodeBreakerWords(words) {
+  extendedWordList = Array.isArray(words)
+    ? words
+        .map((word) => String(word || "").trim().toUpperCase())
+        .filter((word) => word.length >= 3 && word.length <= 8)
+    : [];
+}
+
+export function getExtendedCodeBreakerWords() {
+  return extendedWordList;
+}
+
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -178,7 +192,8 @@ function uniqueOptions(correct, generator, maxAttempts = 100) {
 }
 
 function pickWords(minLen = 3, maxLen = 5, count = 1) {
-  const filtered = WORD_LIST.filter(
+  const mergedWordList = [...WORD_LIST, ...extendedWordList];
+  const filtered = [...new Set(mergedWordList)].filter(
     (w) => w.length >= minLen && w.length <= maxLen
   );
   const out = [];
