@@ -604,7 +604,12 @@ router.get('/dataset/status', async (req, res) => {
     res.set('Pragma', 'no-cache');
     res.set('Expires', '0');
     const { verbalLastAt, codeBreakerLastAt } = await getDatasetFileTimestamps();
-    res.json({ verbalLastAt, codeBreakerLastAt });
+    res.json({
+      success: true,
+      verbalLastAt,
+      codeBreakerLastAt,
+      fetchedAt: new Date().toISOString()
+    });
   } catch (error) {
     console.error('Admin dataset status error:', error);
     res.status(500).json({ error: 'Failed to read dataset status' });

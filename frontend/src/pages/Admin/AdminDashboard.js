@@ -133,6 +133,11 @@ const AdminDashboard = () => {
     try {
       const res = await api.post('/api/admin/dataset/verbal', { count: 10 });
       if (res.data?.success) {
+        const nowIso = new Date().toISOString();
+        setDatasetTimestamps((prev) => ({
+          ...prev,
+          verbalLastAt: nowIso
+        }));
         toast.success(res.data.message || `Added ${res.data.added} words. Total: ${res.data.total}.`);
         await refreshDatasetTimestamps();
       } else {
@@ -150,6 +155,11 @@ const AdminDashboard = () => {
     try {
       const res = await api.post('/api/admin/dataset/codebreaker', { count: 15 });
       if (res.data?.success) {
+        const nowIso = new Date().toISOString();
+        setDatasetTimestamps((prev) => ({
+          ...prev,
+          codeBreakerLastAt: nowIso
+        }));
         toast.success(res.data.message || `Added ${res.data.added} words. Total: ${res.data.total}.`);
         await refreshDatasetTimestamps();
       } else {
