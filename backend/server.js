@@ -12,6 +12,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 
 const { getCorsOptions, getSocketIoCorsConfig } = require('./config/cors');
+const { ensureAdminUser } = require('./services/adminBootstrap');
 
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
@@ -66,6 +67,7 @@ async function connectDbAndBootstrap() {
     console.log('Database:', mongoose.connection.name);
     const { ensureDefaultGamesIfEmpty } = require('./services/gameBootstrap');
     await ensureDefaultGamesIfEmpty();
+    await ensureAdminUser();
   } catch (err) {
     console.error('MongoDB connection error:', err.message);
     if (process.env.NODE_ENV === 'development') {
